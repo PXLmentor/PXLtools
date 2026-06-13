@@ -1,0 +1,16 @@
+{
+  "package": "PXLtools",
+  "version": "1.0.0",
+  "channel": "beta",
+  "repo": "PXLmentor/PXLtools",
+  "updated": "2026-06-12",
+  "tools": {
+    "maya": {
+      "TurnTable_Builder": "1.0.26"
+    },
+    "nuke": {
+      "TurnTable_Comp_Setup": "1.1.14"
+    }
+  },
+  "notes": "First packaged release. The 'version' is the PACKAGE version the updater compares against the GitHub Release tag; per-tool versions track the shipped tool files. Legacy PXLmentor_* tools migrate to PXLtools_* as each is rewritten."
+}

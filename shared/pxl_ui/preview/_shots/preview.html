@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TurnTable Builder — new UI preview</title>
+<style>
+  :root { --orange:#E8820C; --bg:#1c1c1c; --panel:#262626; --text:#e6e6e6; --dim:#8a8a8a; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+         font-family:"Segoe UI",system-ui,sans-serif; }
+  header { padding:26px 32px 18px; border-bottom:2px solid var(--orange); }
+  h1 { margin:0 0 4px; font-size:22px; font-weight:600; }
+  h1 b { color:var(--orange); }
+  .sub { color:var(--dim); font-size:13px; letter-spacing:.5px; }
+  .note { max-width:880px; margin:18px 32px 6px; color:#c8c8c8; font-size:13.5px;
+          line-height:1.55; }
+  .note code { background:var(--panel); padding:2px 6px; border-radius:4px;
+               color:var(--orange); font-size:12.5px; }
+  .gallery { display:flex; gap:28px; flex-wrap:wrap; justify-content:center;
+             padding:24px 32px 60px; align-items:flex-start; }
+  figure { margin:0; background:var(--panel); padding:16px; border-radius:12px;
+           border:1px solid #333; box-shadow:0 10px 40px rgba(0,0,0,.5); }
+  figcaption { text-align:center; color:var(--dim); font-size:12px;
+               letter-spacing:1.5px; text-transform:uppercase; margin-bottom:12px; }
+  figcaption b { color:var(--orange); }
+  img { display:block; width:340px; height:auto; border-radius:8px;
+        image-rendering:auto; }
+</style>
+</head>
+<body>
+  <header>
+    <h1><b>TurnTable Builder</b> — new UI direction</h1>
+    <div class="sub">Zoo-inspired · icon-led collapsible sections · Maya-native dark + PXL orange</div>
+  </header>
+  <p class="note">
+    These are screenshots of the <b>real PySide Qt window</b> (rendered standalone on
+    the same Qt that Maya 2025 uses) — not an HTML mock. The same widget code runs in
+    Nuke 15 via the PySide2/6 compat shim. To see it live & interactive run:
+    <code>python shared/pxl_ui/preview/turntable_preview.py --show</code>
+  </p>
+  <div class="gallery">
+    <figure>
+      <figcaption>Tab 1 — <b>PREP</b></figcaption>
+      <img src="turntable_prep.png?v=1780948789" alt="PREP tab">
+    </figure>
+    <figure>
+      <figcaption>Tab 2 — <b>TURNTABLE</b></figcaption>
+      <img src="turntable_render.png?v=1780948789" alt="TURNTABLE tab">
+    </figure>
+  </div>
+</body>
+</html>

@@ -1,0 +1,46 @@
+# ── PXLtools .gitignore ───────────────────────────────────────────────────────
+# Keep the repo lean: code + small icons only. Heavy turntable assets and the
+# old archives ship as GitHub Release binaries / stay local, NOT in git.
+
+# Versioned archives / dated backups of superseded files
+_OLD/
+**/_OLD/
+**/_OLD_*
+*_2026-*.bak
+*.bak
+
+# Python caches / build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+build/
+dist/
+
+# Heavy / binary deliverables — shipped as the GitHub Release ASSET pack, never in git.
+docs/*.zip
+docs/**/*.zip
+*.ma
+*.mb
+*.nk
+# The entire turntable asset tree (scene, comp, HDRIs, dirt/LUT textures, previews)
+# ships as PXLtools-assets.zip on the Release — not in the code repo.
+docs/TurnTable_Package/TurnTable_ROOT/
+# Stale duplicate tool copies bundled in the old manual package (real tools live in
+# maya/scripts + nuke/scripts).
+docs/TurnTable_Package/scripts/
+
+# Machine-local Claude settings (permissions/paths) — never publish
+**/settings.local.json
+.claude/settings.local.json
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+*.swp
+
+# Never commit secrets (master secrets live outside this tree, but belt-and-suspenders)
+*.env
+.secrets/
+credentials*.env

@@ -1,0 +1,187 @@
+# Tool Name: PXLtools Setup Shelf
+# Version: 1.13.0
+# Author: PXLsuite / BlackMamba3D
+# Description: Creates the PXLtools Maya shelf with one button per tool, plus an
+#              UPDATE button that re-scans the scripts folder for the newest
+#              version of every tool and rebuilds the shelf — no Maya restart.
+# Changelog:
+#   1.13.0 - Auto-update: new "Update" shelf button (icon_update.png) re-scans the
+#             scripts folder, resolves the NEWEST version of each tool by filename
+#             (stem_vMAJOR_MINOR_PATCH[_stage]) and rebuilds the shelf + reloads
+#             modules. Tool entries now carry a version-less `module` stem that is
+#             resolved to the latest file on every build, so future version bumps
+#             appear on click with zero shelf edits. TurnTable -> PXLtools_TurnTable_Builder.
+#   1.12.0 - PXLtools branding pass: every tool patch-bumped for the in-tool
+#             logo swap (PixelMentor_Logo_Long -> PXLtools_logo).
+#   1.11.0 - Rebrand pass: SHELF_NAME PXLmentor -> PXLtools.
+#   1.10.0 - Phase 1 retrofit to STANDARD v1.1.0 (no-right-spacer header).
+#   1.9.0 - MU Bridge -> v0.1.2-alpha (header retrofit to STANDARD v1.1.0).
+#   1.8.0 - MU Bridge -> v0.1.1-alpha (PXLMENTOR_TOOL_STANDARD compliance pass).
+#   1.7.0 - Added MU Bridge button (Maya -> Unreal asset bridge, V0.1 export-only).
+#   1.6.0 - Camera Matchmaker -> v0.2.0-alpha (renamed file, drag-drop fix).
+#   1.5.0 - Batch Renamer -> v1.0.6, OBJ Exporter -> v1.0.4 (PySide6 AlignCenter fix).
+#   1.4.0 - Updated all tool versions to latest.
+#   1.3.0 - Added Camera Matchmaker button, positioned before GLB Manager.
+#   1.2.0 - Updated mAIa button to v2.1.0-alpha.
+#   1.1.0 - Updated mAIa button to v2.0.0 (Agent Mode + MayaMCP integration).
+#   1.0.0 - Initial release.
+
+import os
+import re
+import sys
+import glob
+
+import maya.cmds as cmds
+import maya.mel as mel
+import maya.utils
+
+# ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
+
+SHELF_NAME   = "PXLtools"
+SHELF_MODULE = "PXLtools_Setup_Shelf"
+UPDATE_ICON  = "icon_update.png"
+
+# `module` here is a STEM (no version). The newest matching file in the scripts
+# folder is resolved on every build, so a version bump needs no edit here.
+TOOLS = [
+    {"label": "mAIa",          "icon": "icon_claude_for_maya.png",  "module": "PXLmentor_AI_Assistant",
+     "annotation": "Claude for Maya (mAIa)  --  Agent Mode + Quick Prompts"},
+    {"label": "Animatic",      "icon": "icon_animatic_builder.png", "module": "PXLmentor_Animatic_Builder",
+     "annotation": "Animatic Builder"},
+    {"label": "CamMatch",      "icon": "icon_camera_matchmaker.png","module": "PXLmentor_Camera_Matchmaker",
+     "annotation": "Camera Matchmaker  --  fSpy-inspired VP camera solve"},
+    {"label": "GLB Manager",   "icon": "icon_glb_importer.png",     "module": "PXLmentor_GLB_Manager",
+     "annotation": "GLB Manager  --  Import + Export unified"},
+    {"label": "OBJ Export",    "icon": "icon_obj_exporter.png",     "module": "PXLmentor_OBJ_Batch_Exporter",
+     "annotation": "OBJ Batch Exporter"},
+    {"label": "Renamer",       "icon": "icon_batch_renamer.png",    "module": "PXLmentor_Advanced_Batch_Renamer",
+     "annotation": "Advanced Batch Renamer"},
+    {"label": "Materials",     "icon": "icon_arnold_material.png",  "module": "PXLmentor_Arnold_PBR_Material_Creator",
+     "annotation": "Arnold PBR Material Creator"},
+    {"label": "MU Bridge",     "icon": "icon_mu_bridge.png",        "module": "PXLmentor_MU_Bridge",
+     "annotation": "MU Bridge  --  Maya -> Unreal shader-preserving asset export"},
+    {"label": "Render Layers", "icon": "icon_render_layers.png",    "module": "PXLmentor_Legacy_Render_Layer_Creator",
+     "annotation": "Legacy Render Layer Creator"},
+    {"label": "TurnTable",     "icon": "icon_turntable_builder.png","module": "PXLtools_TurnTable_Builder",
+     "annotation": "PXLtools TurnTable Builder"},
+]
+
+# ---------------------------------------------------------------------------
+# Version-aware discovery
+# ---------------------------------------------------------------------------
+
+def _scripts_dir():
+    """Folder that holds this shelf file (and all the tool .py files)."""
+    try:
+        return os.path.dirname(os.path.abspath(__file__))
+    except NameError:
+        for p in sys.path:
+            if os.path.isfile(os.path.join(p, SHELF_MODULE + ".py")):
+                return p
+        return cmds.internalVar(userScriptDir=True)
+
+
+def _version_key(filepath, stem):
+    """('<stem>_v1_0_21' -> (1,0,21,3)). Stage rank: alpha<beta<rc<release."""
+    base = os.path.splitext(os.path.basename(filepath))[0]
+    if not base.startswith(stem + "_v"):
+        return None
+    nums, stage = [], 3
+    for part in base[len(stem) + 2:].split("_"):
+        if part.isdigit():
+            nums.append(int(part))
+        else:
+            stage = {"alpha": 0, "beta": 1, "rc": 2}.get(part.lower(), stage)
+    nums = (nums + [0, 0, 0])[:3]
+    return (nums[0], nums[1], nums[2], stage)
+
+
+def _latest_module(stem):
+    """Newest '<stem>_v*.py' module name in the scripts folder, or the stem itself."""
+    best, best_key = stem, None
+    for f in glob.glob(os.path.join(_scripts_dir(), stem + "_v*.py")):
+        k = _version_key(f, stem)
+        if k and (best_key is None or k > best_key):
+            best_key, best = k, os.path.splitext(os.path.basename(f))[0]
+    return best
+
+
+def _launch_cmd(module_name):
+    """Python that reloads (if loaded) or imports the given tool module."""
+    return (
+        "import importlib, sys\n"
+        "mod = '{m}'\n"
+        "if mod in sys.modules:\n"
+        "    importlib.reload(sys.modules[mod])\n"
+        "else:\n"
+        "    __import__(mod)\n"
+    ).format(m=module_name)
+
+
+def _update_cmd():
+    """Reload THIS shelf module to re-discover latest + rebuild — but DEFERRED.
+
+    The rebuild calls cmds.deleteUI on this shelf, which contains the very button
+    being clicked. Deleting a live widget from inside its own Qt event handler
+    crashes Maya (Qt6Core access violation). executeDeferred runs the reload on
+    the next idle tick, after the click has fully unwound, so the delete is safe.
+    """
+    inner = (
+        "import importlib, sys; "
+        "m = '%s'; "
+        "importlib.reload(sys.modules[m]) if m in sys.modules else __import__(m)"
+    ) % SHELF_MODULE
+    return "import maya.cmds as cmds\ncmds.evalDeferred(%r, lowestPriority=True)\n" % inner
+
+
+# ---------------------------------------------------------------------------
+# Shelf build
+# ---------------------------------------------------------------------------
+
+def setup_shelf():
+    shelf_top = mel.eval("$_tmp = $gShelfTopLevel")
+
+    if cmds.shelfLayout(SHELF_NAME, exists=True):
+        cmds.deleteUI(SHELF_NAME, layout=True)
+
+    shelf = cmds.shelfLayout(SHELF_NAME, parent=shelf_top)
+
+    # --- Update button (always first) ---
+    cmds.shelfButton(
+        parent=shelf,
+        label="Update",
+        annotation="Update PXLtools — re-scan the scripts folder and reload every "
+                   "tool to its latest version (no Maya restart).",
+        image=UPDATE_ICON,
+        command=_update_cmd(),
+        sourceType="python",
+        style="iconOnly",
+    )
+    cmds.separator(parent=shelf, style="shelf", horizontal=False)
+
+    # --- Tool buttons (each resolved to its newest version) ---
+    loaded = 0
+    for tool in TOOLS:
+        module = _latest_module(tool["module"])
+        cmds.shelfButton(
+            parent=shelf,
+            label=tool["label"],
+            annotation="{}   [{}]".format(tool["annotation"], module),
+            image=tool["icon"],
+            command=_launch_cmd(module),
+            sourceType="python",
+            style="iconOnly",
+        )
+        loaded += 1
+
+    cmds.shelfTabLayout(shelf_top, edit=True, selectTab=SHELF_NAME)
+    cmds.inViewMessage(
+        assistMessage="PXLtools shelf updated — {} tools at latest version.".format(loaded),
+        position="midCenter",
+        fade=True,
+    )
+
+
+setup_shelf()
