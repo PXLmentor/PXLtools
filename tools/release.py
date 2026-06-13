@@ -43,6 +43,12 @@ SECRETS   = "J:/ClaudeCode/.secrets/credentials.env"
 
 ASSET_SRC = os.path.join(REPO_ROOT, "docs", "TurnTable_Package", "TurnTable_ROOT")
 
+# Public package ships ONLY the TurnTable tool (the 9 legacy PXLmentor_* tools stay
+# internal until each is rewritten). A Maya tool file ships if its name starts with
+# any of these stems; the shelf + Nuke menu skip buttons whose file is absent.
+SHIP_MAYA_STEMS = ("PXLtools_TurnTable_Builder", "PXLtools_Setup_Shelf")
+SHIP_NUKE_STEMS = ("PXLtools_TurnTable_Comp_Setup",)
+
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -119,25 +125,27 @@ def build_code_zip(version):
 
     pxl_ui = os.path.join(REPO_ROOT, "shared", "pxl_ui")
 
-    # Maya — copy *.py tool scripts (skip test/dev files) + pxl_ui + icons
+    # Maya — copy ONLY the shipped tool files (TurnTable + shelf) + pxl_ui + icons.
     maya_scripts_src = os.path.join(REPO_ROOT, "maya", "scripts")
     maya_scripts_dst = os.path.join(stage, "maya", "scripts")
     os.makedirs(maya_scripts_dst, exist_ok=True)
     for name in os.listdir(maya_scripts_src):
         full = os.path.join(maya_scripts_src, name)
-        if os.path.isfile(full) and name.endswith(".py") and not name.startswith("_test"):
+        if (os.path.isfile(full) and name.endswith(".py")
+                and name.startswith(SHIP_MAYA_STEMS)):
             shutil.copy2(full, os.path.join(maya_scripts_dst, name))
     _copytree(pxl_ui, os.path.join(maya_scripts_dst, "pxl_ui"))
     _copytree(os.path.join(maya_scripts_src, "icons"), os.path.join(stage, "maya", "icons"))
 
-    # Nuke — *.py tools + pxl_ui + icons + init.py + menu.py
+    # Nuke — ONLY the shipped tool files + pxl_ui + icons + init.py + menu.py
     nuke_scripts_src = os.path.join(REPO_ROOT, "nuke", "scripts")
     nuke_scripts_dst = os.path.join(stage, "nuke", "scripts")
     os.makedirs(nuke_scripts_dst, exist_ok=True)
     if os.path.isdir(nuke_scripts_src):
         for name in os.listdir(nuke_scripts_src):
             full = os.path.join(nuke_scripts_src, name)
-            if os.path.isfile(full) and name.endswith(".py"):
+            if (os.path.isfile(full) and name.endswith(".py")
+                    and name.startswith(SHIP_NUKE_STEMS)):
                 shutil.copy2(full, os.path.join(nuke_scripts_dst, name))
     _copytree(pxl_ui, os.path.join(nuke_scripts_dst, "pxl_ui"))
     _copytree(os.path.join(REPO_ROOT, "nuke", "icons"), os.path.join(stage, "nuke", "icons"))

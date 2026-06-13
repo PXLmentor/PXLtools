@@ -1,10 +1,15 @@
 # Tool Name: PXLtools Setup Shelf
-# Version: 1.13.0
+# Version: 1.14.0
 # Author: PXLsuite / BlackMamba3D
-# Description: Creates the PXLtools Maya shelf with one button per tool, plus an
-#              UPDATE button that re-scans the scripts folder for the newest
-#              version of every tool and rebuilds the shelf — no Maya restart.
+# Description: Creates the PXLtools Maya shelf — one button per INSTALLED tool
+#              (tools whose file is absent are skipped, so a TurnTable-only package
+#              shows just that button). No Update button: updates come from the
+#              GitHub release flow (re-run the installer).
 # Changelog:
+#   1.14.0 - Removed the in-shelf "Update" button (updates now come from the GitHub
+#             release flow). Shelf now SKIPS tools whose versioned file isn't present
+#             so the public TurnTable-only package shows only the TurnTable button.
+# Changelog (prior):
 #   1.13.0 - Auto-update: new "Update" shelf button (icon_update.png) re-scans the
 #             scripts folder, resolves the NEWEST version of each tool by filename
 #             (stem_vMAJOR_MINOR_PATCH[_stage]) and rebuilds the shelf + reloads
@@ -99,8 +104,10 @@ def _version_key(filepath, stem):
 
 
 def _latest_module(stem):
-    """Newest '<stem>_v*.py' module name in the scripts folder, or the stem itself."""
-    best, best_key = stem, None
+    """Newest '<stem>_v*.py' module name in the scripts folder, or None if the tool
+    isn't installed (so the shelf simply omits its button — e.g. the public
+    TurnTable-only package ships just the one tool)."""
+    best, best_key = None, None
     for f in glob.glob(os.path.join(_scripts_dir(), stem + "_v*.py")):
         k = _version_key(f, stem)
         if k and (best_key is None or k > best_key):
@@ -120,22 +127,6 @@ def _launch_cmd(module_name):
     ).format(m=module_name)
 
 
-def _update_cmd():
-    """Reload THIS shelf module to re-discover latest + rebuild — but DEFERRED.
-
-    The rebuild calls cmds.deleteUI on this shelf, which contains the very button
-    being clicked. Deleting a live widget from inside its own Qt event handler
-    crashes Maya (Qt6Core access violation). executeDeferred runs the reload on
-    the next idle tick, after the click has fully unwound, so the delete is safe.
-    """
-    inner = (
-        "import importlib, sys; "
-        "m = '%s'; "
-        "importlib.reload(sys.modules[m]) if m in sys.modules else __import__(m)"
-    ) % SHELF_MODULE
-    return "import maya.cmds as cmds\ncmds.evalDeferred(%r, lowestPriority=True)\n" % inner
-
-
 # ---------------------------------------------------------------------------
 # Shelf build
 # ---------------------------------------------------------------------------
@@ -148,23 +139,15 @@ def setup_shelf():
 
     shelf = cmds.shelfLayout(SHELF_NAME, parent=shelf_top)
 
-    # --- Update button (always first) ---
-    cmds.shelfButton(
-        parent=shelf,
-        label="Update",
-        annotation="Update PXLtools — re-scan the scripts folder and reload every "
-                   "tool to its latest version (no Maya restart).",
-        image=UPDATE_ICON,
-        command=_update_cmd(),
-        sourceType="python",
-        style="iconOnly",
-    )
-    cmds.separator(parent=shelf, style="shelf", horizontal=False)
-
-    # --- Tool buttons (each resolved to its newest version) ---
+    # One button per INSTALLED tool (newest version). Tools whose file isn't present
+    # are skipped — so the public TurnTable-only package shows just that button,
+    # while a full local install shows them all. (No Update button — updates come
+    # from the GitHub release flow / re-running the installer.)
     loaded = 0
     for tool in TOOLS:
         module = _latest_module(tool["module"])
+        if not module:
+            continue
         cmds.shelfButton(
             parent=shelf,
             label=tool["label"],
@@ -178,7 +161,7 @@ def setup_shelf():
 
     cmds.shelfTabLayout(shelf_top, edit=True, selectTab=SHELF_NAME)
     cmds.inViewMessage(
-        assistMessage="PXLtools shelf updated — {} tools at latest version.".format(loaded),
+        assistMessage="PXLtools shelf ready — {} tool(s).".format(loaded),
         position="midCenter",
         fade=True,
     )
