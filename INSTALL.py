@@ -118,12 +118,19 @@ def _install_maya(extracted, version):
     cmds.internalVar(userAppDir=True)
     os.environ["XBMLANGPATH"] = os.path.join(module_root, "maya", "icons") + os.pathsep + os.environ.get("XBMLANGPATH", "")
 
-    # Build the shelf
-    import importlib
-    if SHELF_MODULE in sys.modules:
-        importlib.reload(sys.modules[SHELF_MODULE])
-    else:
-        __import__(SHELF_MODULE)
+    # Purge any cached PXLtools modules so the freshly-installed module loads from
+    # sys.path[0] (the new module), instead of an old scattered copy still cached
+    # in this Maya session. Then a plain re-drag works without restarting Maya.
+    for _name in list(sys.modules):
+        if (_name == SHELF_MODULE
+                or _name.startswith("PXLtools_")
+                or _name.startswith("PXLmentor_")
+                or _name == "pxl_ui" or _name.startswith("pxl_ui.")):
+            del sys.modules[_name]
+
+    # Build the shelf from the freshly installed module (setup_shelf deletes the
+    # existing PXLtools shelf and rebuilds it — no manual shelf removal needed).
+    __import__(SHELF_MODULE)
     return module_root
 
 
