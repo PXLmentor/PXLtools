@@ -21,7 +21,8 @@ import zipfile
 REPO          = "PXLmentor/PXLtools"
 API_LATEST    = "https://api.github.com/repos/{}/releases/latest".format(REPO)
 API_ALL       = "https://api.github.com/repos/{}/releases".format(REPO)
-CODE_ASSET    = "PXLtools-code"      # zip name prefix
+CODE_ASSET    = "PXLtools-code"      # code zip name prefix
+ASSET_PACK    = "PXLtools-assets"    # turntable scene/comp/HDRIs zip prefix
 SHELF_MODULE  = "PXLtools_Setup_Shelf"
 
 
@@ -156,6 +157,43 @@ def _install_nuke(extracted):
     return tb
 
 
+def _asset_zip_url(release):
+    for a in release.get("assets", []):
+        if a["name"].startswith(ASSET_PACK) and a["name"].endswith(".zip"):
+            return a["browser_download_url"], a["name"]
+    return None, None
+
+
+def _install_assets(release):
+    """Download + place the turntable asset pack (scene/comp/HDRIs) at
+    ~/Documents/PXLtools/TurnTable_ROOT, only if it's not already there. Prompted,
+    since it's a large download. Returns the path or a short status string."""
+    import maya.cmds as cmds
+    dest_root = os.path.join(os.path.expanduser("~"), "Documents", "PXLtools")
+    tt_root = os.path.join(dest_root, "TurnTable_ROOT")
+    if os.path.isdir(tt_root):
+        return tt_root + "  (already present)"
+    url, name = _asset_zip_url(release)
+    if not url:
+        return "(asset pack not on this release)"
+    ans = cmds.confirmDialog(
+        title="PXLtools — turntable assets",
+        message=("The turntable scene + comp + HDRIs (~350 MB) are needed to load the "
+                 "TurnTable scene.\n\nDownload + install them now?\n\n"
+                 "(You can skip and point the tool at an existing TurnTable_ROOT instead.)"),
+        button=["Download", "Skip"], defaultButton="Download", cancelButton="Skip")
+    if ans != "Download":
+        return "(skipped by user)"
+    os.makedirs(dest_root, exist_ok=True)
+    tmp = tempfile.mkdtemp(prefix="pxltools_assets_")
+    zpath = os.path.join(tmp, name)
+    _download(url, zpath)
+    with zipfile.ZipFile(zpath, "r") as zf:
+        zf.extractall(dest_root)            # contains TurnTable_ROOT/ at top
+    shutil.rmtree(tmp, ignore_errors=True)
+    return tt_root
+
+
 def install():
     import maya.cmds as cmds
     try:
@@ -171,13 +209,15 @@ def install():
 
         module_root = _install_maya(extracted, version)
         nuke_tb = _install_nuke(extracted)
+        assets = _install_assets(rel)
 
         msg = ("PXLtools v{} installed.\n\n"
                "Maya module: {}\n"
-               "Nuke toolbox: {}\n\n"
+               "Nuke toolbox: {}\n"
+               "Turntable assets: {}\n\n"
                "The PXLtools shelf is ready. (Nuke picks up its menu on next launch.)\n"
-               "Tip: use the shelf Update button for future releases."
-               ).format(version, module_root, nuke_tb or "(skipped)")
+               "To update later, just drag this INSTALL.py in again."
+               ).format(version, module_root, nuke_tb or "(skipped)", assets)
         cmds.confirmDialog(title="PXLtools Installer", message=msg, button=["Great"])
         try:
             cmds.inViewMessage(amg="PXLtools v{} installed.".format(version),

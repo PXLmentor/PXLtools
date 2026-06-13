@@ -167,8 +167,14 @@ def build_asset_zip():
     out = os.path.join(BUILD_DIR, "PXLtools-assets.zip")
     if os.path.isfile(out):
         os.remove(out)
-    # keep the TurnTable_ROOT/ top folder inside the zip
-    _zipdir(os.path.dirname(ASSET_SRC), out)
+    # Zip ONLY TurnTable_ROOT, stored under a top-level "TurnTable_ROOT/" prefix
+    # (NOT the whole TurnTable_Package — that holds the old 210MB zip + stale copies).
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
+        for root, _dirs, files in os.walk(ASSET_SRC):
+            for f in files:
+                full = os.path.join(root, f)
+                rel  = os.path.join("TurnTable_ROOT", os.path.relpath(full, ASSET_SRC))
+                zf.write(full, rel)
     print("  asset zip: {} ({:.1f} MB)".format(out, os.path.getsize(out) / 1e6))
     return out
 
