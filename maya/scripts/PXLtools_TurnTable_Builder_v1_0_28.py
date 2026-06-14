@@ -1,8 +1,8 @@
 """
 Tool Name   : PXLtools TurnTable Builder
-Version     : 1.0.27
+Version     : 1.0.28
 Stage       : Release
-Checkpoint  : CP113
+Checkpoint  : CP114
 Author      : PXLsuite / BlackMamba3D
 Description : Load the PXL turntable scene as a Maya reference, attach a
               selected model or use the built-in shader ball, and auto-center for
@@ -13,6 +13,12 @@ Description : Load the PXL turntable scene as a Maya reference, attach a
               installs — Maya 2025.
 
 Changelog:
+    1.0.28      - CP114: Ships the unified single-source combo dropdown (shared
+                 pxl_ui.theme.tool_qss): no drop-down box, chevron pinned center-right,
+                 hover-down-arrow rule removed — so the dropdown renders ONE arrow
+                 identically in Maya (Qt6) and Nuke (Qt5). No Maya logic change; this is
+                 the shared-kit fix that also resolves the Nuke double-arrow. The grey
+                 drop-down box is intentionally gone (Qt5 can't keep a box AND one arrow).
     1.0.27      - CP113: Auto-update on launch wired in (run() defers a once/day
                  GitHub stable-release check via pxl_ui.pxl_update; offers a one-click
                  update if newer, silent otherwise). No manual button.
@@ -1046,7 +1052,7 @@ class TurnTableBuilder(object):
     """
 
     TOOL_NAME         = "PXL TurnTable Builder"
-    VERSION           = "1.0.27"
+    VERSION           = "1.0.28"
     WINDOW_OBJECT_NAME = "PXLtools_TurnTableBuilder_v100"
     # Older window ids earlier builds used — matched on relaunch so an Update
     # cleanly closes a stale window instead of leaving a duplicate alongside.

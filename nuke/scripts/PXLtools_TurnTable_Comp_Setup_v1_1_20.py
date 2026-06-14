@@ -1,7 +1,7 @@
 # ==============================================================================
 # Tool Name:   PXLtools TurnTable Comp Setup
-# Version:     1.1.19
-# Checkpoint:  CP077
+# Version:     1.1.20
+# Checkpoint:  CP078
 # Author:      PXLsuite / BlackMamba3D
 # Description: Live control panel for the TurnTable comp. Drives comp nodes
 #              directly — no TT_Settings relay, no Apply button.
@@ -9,8 +9,23 @@
 # Platform:    Nuke 15 (Python 3) | PySide2
 #
 # Changelog:
-#   1.1.19      - CP077 - ACTUAL ROOT CAUSE of the combo double-arrow, finally found
-#                         (Qt docs + PySide2 testing): the shared tool_qss() DOES style
+#   1.1.20      - CP078 - Combo single-arrow VERIFIED in real Nuke Qt5 (rendered the actual
+#                         widget via Nuke --tg and looked at it). The double-arrow had TWO
+#                         causes, both fixed in the shared tool_qss() (single source -> Maya
+#                         inherits it too): (a) styling QComboBox::drop-down as a box makes Qt5
+#                         paint a native arrow inside it IN ADDITION to the chevron image;
+#                         (b) the QComboBox::down-arrow:hover rule, by re-declaring the
+#                         sub-control, made Qt5 paint a SECOND arrow at the default centre even
+#                         when not hovering. Fix: drop-down has no box (border:0;width:0), the
+#                         down-arrow is pinned center-right, and the hover down-arrow rule is
+#                         removed. Confirmed by direct render: ONE arrow in Nuke (Qt5) AND Qt6
+#                         (identical to Maya). Combined with the 1.1.19 space-free PNG dir so
+#                         Qt5 can load the chevron image at all.
+#   1.1.19      - CP077 - Space-path attempt: the chevron PNG was written under
+#                         "C:/Users/Evil Knight/..." and Qt5 url() silently fails on spaced
+#                         paths. Made all generated UI PNGs write to a space-free dir (8.3 short
+#                         path). Necessary but not sufficient on its own — see 1.1.20. (orig note:
+#                         the shared tool_qss() DOES style
 #                         QComboBox::down-arrow with a chevron image, but the image PNG was
 #                         written to the temp dir under "C:/Users/Evil Knight/..." — and
 #                         Qt5/PySide2 QSS url() SILENTLY FAILS to load any path containing a
@@ -433,7 +448,7 @@ STATUS_ERR   = "#803838"
 STATUS_IDLE  = "#383838"
 STATUS_WARN  = "#5a4a10"
 
-VERSION   = "1.1.19"
+VERSION   = "1.1.20"
 TOOL_NAME = "TurnTable Comp Setup"
 
 # Comp template is resolved at import time relative to the Working Folder

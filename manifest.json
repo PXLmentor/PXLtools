@@ -6,10 +6,10 @@
   "updated": "2026-06-14",
   "tools": {
     "maya": {
-      "TurnTable_Builder": "1.0.27"
+      "TurnTable_Builder": "1.0.28"
     },
     "nuke": {
-      "TurnTable_Comp_Setup": "1.1.19"
+      "TurnTable_Comp_Setup": "1.1.20"
     }
   },
   "notes": "First packaged release. The 'version' is the PACKAGE version the updater compares against the GitHub Release tag; per-tool versions track the shipped tool files. Legacy PXLmentor_* tools migrate to PXLtools_* as each is rewritten."
