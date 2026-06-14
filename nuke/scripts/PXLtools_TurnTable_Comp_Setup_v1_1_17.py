@@ -1,7 +1,7 @@
 # ==============================================================================
 # Tool Name:   PXLtools TurnTable Comp Setup
-# Version:     1.1.16
-# Checkpoint:  CP074
+# Version:     1.1.17
+# Checkpoint:  CP075
 # Author:      PXLsuite / BlackMamba3D
 # Description: Live control panel for the TurnTable comp. Drives comp nodes
 #              directly — no TT_Settings relay, no Apply button.
@@ -9,6 +9,14 @@
 # Platform:    Nuke 15 (Python 3) | PySide2
 #
 # Changelog:
+#   1.1.17      - CP075 - Two VERIFIED root-cause fixes (traced, not guessed):
+#                         (1) combo DOUBLE-ARROW: the window-level QSS replaced
+#                         __SPINDOWN__ with '' -> image:url() empty -> Qt5 drew a NATIVE
+#                         arrow on top of the styled one. Now substitutes the real quoted
+#                         arrow PNGs (like Maya) -> single arrow. (2) Missing HEADER icon:
+#                         _ICON_DIR still pointed at the pre-rename ~/.nuke/PXLmentorToolbox/
+#                         icons (gone) -> AppHeader fell back to the film icon. Repointed to
+#                         ~/.nuke/PXLtools/icons.
 #   1.1.16      - CP074 - Nuke parity part 2: combo double-arrow fixed (QSS url()
 #                         now QUOTED so space-containing temp paths load -> single right
 #                         arrow); no working folder -> Instructions + Preliminary open on
@@ -402,7 +410,7 @@ STATUS_ERR   = "#803838"
 STATUS_IDLE  = "#383838"
 STATUS_WARN  = "#5a4a10"
 
-VERSION   = "1.1.16"
+VERSION   = "1.1.17"
 TOOL_NAME = "TurnTable Comp Setup"
 
 # Comp template is resolved at import time relative to the Working Folder
@@ -463,7 +471,7 @@ PREFS_PATH = os.path.join(
     "tt_comp_setup_prefs.json"
 )
 _ICON_DIR = os.path.join(
-    os.path.expanduser("~"), ".nuke", "PXLmentorToolbox", "icons"
+    os.path.expanduser("~"), ".nuke", "PXLtools", "icons"
 )
 
 
@@ -1536,10 +1544,20 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
                 _hh = os.path.join(_td, "_pxlui_slh_h_nk.png")
                 _mk_handle(_hn, False); _mk_handle(_hh, True)
                 _slh["n"] = _hn.replace("\\", "/"); _slh["h"] = _hh.replace("\\", "/")
-                _qss = (pxlt.tool_qss().replace("__CHECK__", _chkpath)
-                        .replace("__SPINUP__", "").replace("__SPINDOWN__", "")
-                        .replace("__SPINUPH__", "").replace("__SPINDOWNH__", "")
-                        .replace("__SLH__", "").replace("__SLHH__", ""))
+                # Substitute the REAL (quoted) PNG paths into the window QSS. Using ""
+                # here left `image:url()` -> Qt5 drew a NATIVE combo arrow on top of the
+                # styled one (the "double arrow"). Quoting survives the space in the temp
+                # path. (Verified: Maya substitutes real paths and shows a single arrow.)
+                def _qq(p):
+                    return '"{}"'.format(p) if p else '""'
+                _qss = (pxlt.tool_qss()
+                        .replace("__CHECK__",     _qq(_chkpath))
+                        .replace("__SPINUP__",    _qq(_arrow["up"]))
+                        .replace("__SPINDOWN__",  _qq(_arrow["dn"]))
+                        .replace("__SPINUPH__",   _qq(_arrow["uph"]))
+                        .replace("__SPINDOWNH__", _qq(_arrow["dnh"]))
+                        .replace("__SLH__",       _qq(_slh["n"]))
+                        .replace("__SLHH__",      _qq(_slh["h"])))
         except Exception:
             _qss = ""
         # QSS url() must be QUOTED — temp paths can contain spaces (e.g.
