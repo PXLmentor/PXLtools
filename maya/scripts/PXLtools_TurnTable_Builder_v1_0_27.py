@@ -1,8 +1,8 @@
 """
 Tool Name   : PXLtools TurnTable Builder
-Version     : 1.0.26
+Version     : 1.0.27
 Stage       : Release
-Checkpoint  : CP112
+Checkpoint  : CP113
 Author      : PXLsuite / BlackMamba3D
 Description : Load the PXL turntable scene as a Maya reference, attach a
               selected model or use the built-in shader ball, and auto-center for
@@ -13,6 +13,9 @@ Description : Load the PXL turntable scene as a Maya reference, attach a
               installs — Maya 2025.
 
 Changelog:
+    1.0.27      - CP113: Auto-update on launch wired in (run() defers a once/day
+                 GitHub stable-release check via pxl_ui.pxl_update; offers a one-click
+                 update if newer, silent otherwise). No manual button.
     1.0.26      - CP112: Camera switch + frame FIXED (root-caused via research,
                  sourced to Autodesk docs + maya-capture). TWO real bugs: (1) the
                  panel was getPanel("modelPanel")[0] = CREATION order, so it switched
@@ -1043,7 +1046,7 @@ class TurnTableBuilder(object):
     """
 
     TOOL_NAME         = "PXL TurnTable Builder"
-    VERSION           = "1.0.26"
+    VERSION           = "1.0.27"
     WINDOW_OBJECT_NAME = "PXLtools_TurnTableBuilder_v100"
     # Older window ids earlier builds used — matched on relaunch so an Update
     # cleanly closes a stale window instead of leaving a duplicate alongside.
@@ -5290,6 +5293,14 @@ class TurnTableBuilder(object):
 def run():
     """Launch the PXL TurnTable Builder."""
     TurnTableBuilder()
+    # Auto-update: check GitHub for a newer STABLE release (throttled once/day),
+    # deferred so it never slows the tool open and can't break launch.
+    try:
+        from pxl_ui import pxl_update
+        cmds.evalDeferred(lambda: pxl_update.check(channel="stable", dcc="maya"),
+                          lowestPriority=True)
+    except Exception:
+        pass
 
 
 run()

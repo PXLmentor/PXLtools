@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "channel": "beta",
   "repo": "PXLmentor/PXLtools",
-  "updated": "2026-06-12",
+  "updated": "2026-06-13",
   "tools": {
     "maya": {
-      "TurnTable_Builder": "1.0.26"
+      "TurnTable_Builder": "1.0.27"
     },
     "nuke": {
       "TurnTable_Comp_Setup": "1.1.14"

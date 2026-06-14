@@ -208,17 +208,26 @@ def main():
     title = "PXLtools {} ({})".format(tag, args.channel)
     notes = args.notes or "PXLtools {} — {} release.".format(tag, args.channel)
 
-    # delete an existing release/tag with the same name so this is idempotent
-    _gh(["release", "delete", tag, "--repo", REPO, "--yes", "--cleanup-tag"], token)
-
-    cmd = ["release", "create", tag, "--repo", REPO, "--title", title, "--notes", notes]
-    if args.channel == "beta":
-        cmd.append("--prerelease")
-    cmd += zips
-    res = _gh(cmd, token)
-    if res.returncode != 0:
-        sys.exit("gh release create failed:\n" + res.stderr)
-    print("Released:", res.stdout.strip() or tag)
+    exists = _gh(["release", "view", tag, "--repo", REPO], token).returncode == 0
+    if exists:
+        # Update IN PLACE: clobber only the zips we built (keeps other assets, e.g.
+        # the large asset pack, when doing a code-only re-cut).
+        up = _gh(["release", "upload", tag, "--repo", REPO, "--clobber"] + zips, token)
+        if up.returncode != 0:
+            sys.exit("gh release upload failed:\n" + up.stderr)
+        edit = ["release", "edit", tag, "--repo", REPO, "--title", title, "--notes", notes]
+        edit += ["--prerelease"] if args.channel == "beta" else ["--prerelease=false", "--latest"]
+        _gh(edit, token)
+        print("Updated release:", tag)
+    else:
+        cmd = ["release", "create", tag, "--repo", REPO, "--title", title, "--notes", notes]
+        if args.channel == "beta":
+            cmd.append("--prerelease")
+        cmd += zips
+        res = _gh(cmd, token)
+        if res.returncode != 0:
+            sys.exit("gh release create failed:\n" + res.stderr)
+        print("Released:", res.stdout.strip() or tag)
     print("Channel :", args.channel, "(prerelease)" if args.channel == "beta" else "(STABLE — public)")
 
 
