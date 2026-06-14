@@ -1,7 +1,7 @@
 # ==============================================================================
 # Tool Name:   PXLtools TurnTable Comp Setup
-# Version:     1.1.15
-# Checkpoint:  CP073
+# Version:     1.1.16
+# Checkpoint:  CP074
 # Author:      PXLsuite / BlackMamba3D
 # Description: Live control panel for the TurnTable comp. Drives comp nodes
 #              directly — no TT_Settings relay, no Apply button.
@@ -9,6 +9,14 @@
 # Platform:    Nuke 15 (Python 3) | PySide2
 #
 # Changelog:
+#   1.1.16      - CP074 - Nuke parity part 2: combo double-arrow fixed (QSS url()
+#                         now QUOTED so space-containing temp paths load -> single right
+#                         arrow); no working folder -> Instructions + Preliminary open on
+#                         launch; Preliminary is now a collapsible with the folder icon
+#                         (Maya parity); Render Location browse orange->green when set;
+#                         references X is a clean simple X; Export colourspace default
+#                         Output - sRGB; MP4 export (mov/h264, single file); output path
+#                         shown inside the capsule (empty status pill removed).
 #   1.1.15      - CP073 - Nuke parity batch (part 1): default BG colour white +
 #                         wire colour cyan; Asset Info icon image->box; Export PNG
 #                         default; Write node 'create directories' set robustly (tries
@@ -394,7 +402,7 @@ STATUS_ERR   = "#803838"
 STATUS_IDLE  = "#383838"
 STATUS_WARN  = "#5a4a10"
 
-VERSION   = "1.1.15"
+VERSION   = "1.1.16"
 TOOL_NAME = "TurnTable Comp Setup"
 
 # Comp template is resolved at import time relative to the Working Folder
@@ -1157,15 +1165,17 @@ class _RefCard(QtWidgets.QFrame):
         else:
             self.chk_dis = None
 
-        btn_clr = QtWidgets.QPushButton("×")
+        btn_clr = QtWidgets.QPushButton("✕")
         btn_clr.setFixedSize(16, 16)
+        btn_clr.setToolTip("Clear this reference")
+        # Clean, simple X — no box; subtle by default, brightens on hover.
         btn_clr.setStyleSheet(
-            "QPushButton{background:#333;color:#888;border:none;font-size:11px;"
-            "border-radius:3px;padding:0;}"
-            "QPushButton:hover{background:#E8820C;color:#fff;}"
+            "QPushButton{background:transparent;color:#777;border:none;"
+            "font-size:12px;font-weight:bold;padding:0;}"
+            "QPushButton:hover{color:#E8820C;background:transparent;}"
         )
         btn_clr.clicked.connect(self._clear)
-        btn_clr.setCursor(QtCore.Qt.ArrowCursor)
+        btn_clr.setCursor(QtCore.Qt.PointingHandCursor)
         tl.addWidget(btn_clr)
         vl.addWidget(top)
 
@@ -1532,12 +1542,20 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
                         .replace("__SLH__", "").replace("__SLHH__", ""))
         except Exception:
             _qss = ""
-        self._CHK = self.__class__._CHK.replace("__CHECK__", _chkpath if _chkpath else "")
+        # QSS url() must be QUOTED — temp paths can contain spaces (e.g.
+        # "C:/Users/Evil Knight/..."); an unquoted url(...) with a space fails to load,
+        # so Qt draws a NATIVE arrow on top of the styled drop-down (the "double arrow").
+        def _q(p):
+            return '"{}"'.format(p) if p else '""'
+        self._CHK = self.__class__._CHK.replace("__CHECK__", _q(_chkpath))
         self._FIELD = (self.__class__._FIELD
-                       .replace("__SPINUP__", _arrow["up"]).replace("__SPINDOWN__", _arrow["dn"])
-                       .replace("__SPINUPH__", _arrow["uph"]).replace("__SPINDOWNH__", _arrow["dnh"]))
+                       .replace("__SPINUP__", _q(_arrow["up"]))
+                       .replace("__SPINDOWN__", _q(_arrow["dn"]))
+                       .replace("__SPINUPH__", _q(_arrow["uph"]))
+                       .replace("__SPINDOWNH__", _q(_arrow["dnh"])))
         self._SLD = (self.__class__._SLD
-                     .replace("__SLH__", _slh["n"]).replace("__SLHH__", _slh["h"]))
+                     .replace("__SLH__", _q(_slh["n"]))
+                     .replace("__SLHH__", _q(_slh["h"])))
         self.setStyleSheet(_qss if _qss else f"QDialog{{background:{self.BODY_BG};}}")
         # Remove Qt's etched disabled-text emboss (looks like a text drop-shadow).
         try:
@@ -2004,10 +2022,20 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
             if not self._block_live:
                 callback(nr, ng, nb)
 
-    def _path_row(self, parent_layout, label, folder=False, file_filter="All (*)"):
+    def _path_row(self, parent_layout, label, folder=False, file_filter="All (*)",
+                  guided=False):
         ed  = self._field()
         btn = self._btn("Browse…", False)
         btn.setFixedSize(92, 32)   # standard inline-action button size
+        if guided:
+            # Guided-step colours like Maya: orange/active until a path is chosen,
+            # then pale-green/done once the field holds a value.
+            def _upd_guided():
+                btn.setStyleSheet(self._STEP_BTN["done"] if ed.text().strip()
+                                  else self._STEP_BTN["active"])
+            ed.textChanged.connect(lambda _=None: _upd_guided())
+            ed.editingFinished.connect(_upd_guided)
+            _upd_guided()
         wrap = QtWidgets.QWidget()
         wrap.setStyleSheet("background:transparent;")
         wl = QtWidgets.QHBoxLayout(wrap)
@@ -2155,6 +2183,16 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
 
     # ── INSTRUCTIONS & PRELIMINARY ────────────────────────────────────────
 
+    def _is_working_folder_set(self):
+        """True when Nuke's project_directory points at a _COMP working folder
+        (same check _refresh_proj uses). Drives whether Instructions/Preliminary
+        start open — mirrors Maya's instr.set_collapsed(self._is_root_valid())."""
+        try:
+            cur = nuke.root()["project_directory"].value() or ""
+            return "_COMP" in cur.replace("\\", "/")
+        except Exception:
+            return False
+
     def _section_instructions(self):
         """Collapsible instructions + nested preliminary steps block."""
         instr_body = QtWidgets.QWidget()
@@ -2183,28 +2221,19 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
 
         vl.addWidget(self._divider())
 
-        # Preliminary steps — nested sub-section
+        # Preliminary steps — a proper collapsible with the FOLDER icon (Maya parity:
+        # Maya's Preliminary section uses icon_name="folder" + orange accent).
         prelim_widget = self._section_preliminary_content()
-        prelim_title = QtWidgets.QPushButton("▶   PRELIMINARY STEPS")
-        prelim_title.setCheckable(True)
-        prelim_title.setChecked(True)
-        prelim_title.setStyleSheet(
-            f"QPushButton{{color:#E8820C;font-size:10px;font-weight:bold;"
-            "text-align:left;background:transparent;border:none;"
-            "letter-spacing:1px;padding:4px 0;}}"
-            "QPushButton:checked{color:#E8820C;}"
-        )
-        prelim_title.toggled.connect(
-            lambda checked: (
-                prelim_widget.setVisible(checked),
-                prelim_title.setText(("▼" if checked else "▶") + "   PRELIMINARY STEPS")
-            )
-        )
-        vl.addWidget(prelim_title)
-        vl.addWidget(prelim_widget)
+        _open = not self._is_working_folder_set()   # open until the working folder is set
+        prelim_sec = self._collapsible("PRELIMINARY STEPS", prelim_widget,
+                                       starts_expanded=_open,
+                                       icon_name="folder", accent="#E8820C")
+        vl.addWidget(prelim_sec)
 
+        # Instructions open when nothing is set up yet; collapsed once the working
+        # folder is valid (mirrors Maya). Auto-collapses after Set (see _refresh_proj).
         wrap = self._collapsible("INSTRUCTIONS", instr_body,
-                                 starts_expanded=False,
+                                 starts_expanded=_open,
                                  icon_name="info", accent="#46C2D6")
         # Store the toggle button so we can auto-collapse after preliminary setup
         self._instr_btn = wrap.findChildren(QtWidgets.QPushButton)[0]
@@ -2407,7 +2436,7 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         info.setWordWrap(True)
         vl.addWidget(info)
 
-        self.f_render_folder = self._path_row(vl, "Render Location", folder=True)
+        self.f_render_folder = self._path_row(vl, "Render Location", folder=True, guided=True)
 
         vl.addWidget(self._divider())
 
@@ -3335,10 +3364,9 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         fwl.setSpacing(6)
         self.combo_write_fmt = QtWidgets.QComboBox()
         self.combo_write_fmt.setStyleSheet(self._FIELD)
-        for fmt in ["png", "exr", "tiff"]:
+        for fmt in ["png", "exr", "tiff", "mp4"]:
             self.combo_write_fmt.addItem(fmt)
         self.combo_write_fmt.setCurrentText("png")   # default export format
-        # TODO (tomorrow): add "mp4" — needs file_type=mov + h264 codec config + testing.
         fwl.addWidget(self.combo_write_fmt)
         fwl.addStretch()
         vl.addWidget(self._row("Format", fmt_wrap))
@@ -3353,21 +3381,26 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         for cs in ["Output - Rec.709", "Output - sRGB", "ACES - ACEScg",
                    "Utility - Linear - sRGB", "scene_linear"]:
             self.combo_write_cs.addItem(cs)
+        self.combo_write_cs.setCurrentText("Output - sRGB")   # default: display sRGB
         cswl.addWidget(self.combo_write_cs)
         cswl.addStretch()
         vl.addWidget(self._row("Colorspace", cs_wrap))
 
         vl.addWidget(self._divider())
 
-        # Path preview
+        # Output path — shown INSIDE a capsule (this is the render destination).
         self.lbl_write_preview = QtWidgets.QLabel("—")
         self.lbl_write_preview.setStyleSheet(
-            "color:#888;font-size:10px;font-style:italic;"
-            "background:transparent;padding:2px 0;")
+            "color:#A8A8A8;font-size:10px;font-style:italic;background:#2c2c2c;"
+            "border:1px solid #262626;padding:5px 10px;border-radius:11px;")
         self.lbl_write_preview.setWordWrap(True)
         vl.addWidget(self.lbl_write_preview)
 
-        self.lbl_write_status = self._stat()
+        # Status line — plain text, invisible until there's a message (no empty pill).
+        self.lbl_write_status = QtWidgets.QLabel("")
+        self.lbl_write_status.setStyleSheet(
+            "color:#A8A8A8;font-size:10px;background:transparent;")
+        self.lbl_write_status.setWordWrap(True)
         vl.addWidget(self.lbl_write_status)
 
         # CREATE + APPLY buttons
@@ -3419,7 +3452,10 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
             if ver:
                 ver_suffix = f"_{ver}"
         fmt = self.combo_write_fmt.currentText() if hasattr(self, "combo_write_fmt") else "exr"
-        filename = f"{name}{ver_suffix}.####.{fmt}"
+        if fmt == "mp4":
+            filename = f"{name}{ver_suffix}.mp4"            # single movie file (no frame pad)
+        else:
+            filename = f"{name}{ver_suffix}.####.{fmt}"
         if base:
             return f"{base.rstrip('/').rstrip(chr(92))}/{filename}"
         return filename
@@ -3455,7 +3491,21 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
 
     def _apply_write_settings(self, node, path: str, fmt: str, cs: str):
         node["file"].setValue(path)
-        node["file_type"].setValue(fmt)
+        if fmt == "mp4":
+            # Nuke writes .mp4 via the mov container + H.264 codec. Knob names vary by
+            # Nuke version, so set whichever exist (verify live).
+            try:
+                node["file_type"].setValue("mov")
+            except Exception:
+                pass
+            for _ck, _cv in (("mov64_codec", "h264"), ("mov64_quality", 3),
+                             ("meta_codec", "h264"), ("codec", "h264")):
+                try:
+                    node[_ck].setValue(_cv)
+                except Exception:
+                    continue
+        else:
+            node["file_type"].setValue(fmt)
         try:
             node["colorspace"].setValue(cs)
         except Exception:
