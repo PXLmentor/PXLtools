@@ -1,7 +1,7 @@
 # ==============================================================================
 # Tool Name:   PXLtools TurnTable Comp Setup
-# Version:     1.1.18
-# Checkpoint:  CP076
+# Version:     1.1.19
+# Checkpoint:  CP077
 # Author:      PXLsuite / BlackMamba3D
 # Description: Live control panel for the TurnTable comp. Drives comp nodes
 #              directly — no TT_Settings relay, no Apply button.
@@ -9,16 +9,28 @@
 # Platform:    Nuke 15 (Python 3) | PySide2
 #
 # Changelog:
-#   1.1.18      - CP076 - DEFINITIVE combo single-arrow fix + PXLsuite single-source rule.
-#                         Root cause (certain, not a theory): combos were styled TWICE — by
-#                         the shared tool_qss() AND by a per-widget _FIELD that re-declared
-#                         QComboBox::down-arrow with a PNG image -> the second arrow. Fix:
-#                         combos are now BARE, styled SOLELY by the shared tool_qss() (Qt
-#                         native single arrow), byte-identical to the Maya tool which has
-#                         always shown one arrow. Removed the dead QComboBox block from
-#                         _FIELD and every per-widget combo stylesheet. ALSO: default
-#                         selections established on every launch (no longer restored from
-#                         prefs) — HDRI = Studio (first available if Studio missing),
+#   1.1.19      - CP077 - ACTUAL ROOT CAUSE of the combo double-arrow, finally found
+#                         (Qt docs + PySide2 testing): the shared tool_qss() DOES style
+#                         QComboBox::down-arrow with a chevron image, but the image PNG was
+#                         written to the temp dir under "C:/Users/Evil Knight/..." — and
+#                         Qt5/PySide2 QSS url() SILENTLY FAILS to load any path containing a
+#                         SPACE (even quoted). The image never loaded, so Qt5 painted its
+#                         NATIVE arrow on top of the styled drop-down = two arrows. (Qt6/Maya
+#                         tolerates the space, which is why Maya always showed one.) The three
+#                         previous "fixes" never addressed the space. FIX: all generated UI
+#                         PNGs (combo arrow, spin arrows, check, slider) now write to a
+#                         GUARANTEED SPACE-FREE directory (8.3 short path, else ProgramData/
+#                         Temp), so Qt5 loads them -> the image suppresses the native arrow ->
+#                         exactly one arrow. This also fixes spin-box/checkbox/slider glyphs
+#                         in Qt5. Single source of truth (tool_qss) unchanged.
+#   1.1.18      - CP076 - Combo single-arrow attempt (combos made bare, styled only by the
+#                         shared tool_qss) + PXLsuite single-source rule documented. Did NOT
+#                         fix the arrow on its own (the real cause was the space in the PNG
+#                         path, see 1.1.19); kept because bare combos (styled solely by the
+#                         shared tool_qss, no per-widget _FIELD) are the correct single-source
+#                         approach. Removed the dead QComboBox block from _FIELD. ALSO:
+#                         default selections established on every launch (no longer restored
+#                         from prefs) — HDRI = Studio (first available if Studio missing),
 #                         Render Type = Beauty, Background = HDRI. See PXLsuite UI/UX STANDARD.
 #   1.1.17      - CP075 - Two VERIFIED root-cause fixes (traced, not guessed):
 #                         (1) combo DOUBLE-ARROW: the window-level QSS replaced
@@ -421,7 +433,7 @@ STATUS_ERR   = "#803838"
 STATUS_IDLE  = "#383838"
 STATUS_WARN  = "#5a4a10"
 
-VERSION   = "1.1.18"
+VERSION   = "1.1.19"
 TOOL_NAME = "TurnTable Comp Setup"
 
 # Comp template is resolved at import time relative to the Working Folder
@@ -1509,7 +1521,29 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         try:
             if _PXLUI:
                 import tempfile as _tf
-                _td = _tf.gettempdir()
+                import ctypes as _ctypes
+                # Qt5/PySide2 QSS url() FAILS to load a path containing a space (e.g. the
+                # "Evil Knight" home dir) even when quoted -> the image silently fails and
+                # Qt draws a NATIVE arrow on top of the styled drop-down (the double-arrow
+                # bug). All generated UI PNGs must therefore live in a SPACE-FREE directory.
+                def _space_free(_p):
+                    if " " not in _p:
+                        return _p
+                    try:                       # 8.3 short path drops spaces (C:\Users\EVILKN~1\...)
+                        _b = _ctypes.create_unicode_buffer(1024)
+                        if _ctypes.windll.kernel32.GetShortPathNameW(_p, _b, 1024) and " " not in _b.value:
+                            return _b.value
+                    except Exception:
+                        pass
+                    for _cand in (r"C:\ProgramData\PXLtools\uikit", r"C:\Temp\PXLtools_uikit"):
+                        try:
+                            os.makedirs(_cand, exist_ok=True)
+                            if " " not in _cand:
+                                return _cand
+                        except Exception:
+                            pass
+                    return _p
+                _td = _space_free(_tf.gettempdir())
                 _chkpath = os.path.join(_td, "_pxlui_check_nk.png")
                 pxli.save_png("check", 11, pxlt.c("on_accent"), _chkpath)
                 _chkpath = _chkpath.replace("\\", "/")
@@ -1540,10 +1574,9 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
                 _hh = os.path.join(_td, "_pxlui_slh_h_nk.png")
                 _mk_handle(_hn, False); _mk_handle(_hh, True)
                 _slh["n"] = _hn.replace("\\", "/"); _slh["h"] = _hh.replace("\\", "/")
-                # Substitute the REAL (quoted) PNG paths into the window QSS. Using ""
-                # here left `image:url()` -> Qt5 drew a NATIVE combo arrow on top of the
-                # styled one (the "double arrow"). Quoting survives the space in the temp
-                # path. (Verified: Maya substitutes real paths and shows a single arrow.)
+                # Substitute the REAL PNG paths into the shared window QSS. Paths are now
+                # SPACE-FREE (see _space_free above), so Qt5 url() loads them and the combo
+                # ::down-arrow image suppresses the native arrow -> exactly one arrow.
                 def _qq(p):
                     return '"{}"'.format(p) if p else '""'
                 _qss = (pxlt.tool_qss()
