@@ -1,7 +1,7 @@
 # ==============================================================================
 # Tool Name:   PXLtools TurnTable Comp Setup
-# Version:     1.1.17
-# Checkpoint:  CP075
+# Version:     1.1.18
+# Checkpoint:  CP076
 # Author:      PXLsuite / BlackMamba3D
 # Description: Live control panel for the TurnTable comp. Drives comp nodes
 #              directly — no TT_Settings relay, no Apply button.
@@ -9,6 +9,17 @@
 # Platform:    Nuke 15 (Python 3) | PySide2
 #
 # Changelog:
+#   1.1.18      - CP076 - DEFINITIVE combo single-arrow fix + PXLsuite single-source rule.
+#                         Root cause (certain, not a theory): combos were styled TWICE — by
+#                         the shared tool_qss() AND by a per-widget _FIELD that re-declared
+#                         QComboBox::down-arrow with a PNG image -> the second arrow. Fix:
+#                         combos are now BARE, styled SOLELY by the shared tool_qss() (Qt
+#                         native single arrow), byte-identical to the Maya tool which has
+#                         always shown one arrow. Removed the dead QComboBox block from
+#                         _FIELD and every per-widget combo stylesheet. ALSO: default
+#                         selections established on every launch (no longer restored from
+#                         prefs) — HDRI = Studio (first available if Studio missing),
+#                         Render Type = Beauty, Background = HDRI. See PXLsuite UI/UX STANDARD.
 #   1.1.17      - CP075 - Two VERIFIED root-cause fixes (traced, not guessed):
 #                         (1) combo DOUBLE-ARROW: the window-level QSS replaced
 #                         __SPINDOWN__ with '' -> image:url() empty -> Qt5 drew a NATIVE
@@ -410,7 +421,7 @@ STATUS_ERR   = "#803838"
 STATUS_IDLE  = "#383838"
 STATUS_WARN  = "#5a4a10"
 
-VERSION   = "1.1.17"
+VERSION   = "1.1.18"
 TOOL_NAME = "TurnTable Comp Setup"
 
 # Comp template is resolved at import time relative to the Working Folder
@@ -1416,25 +1427,10 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         "QSpinBox::up-arrow:hover,QDoubleSpinBox::up-arrow:hover{image:url(__SPINUPH__);}"
         "QSpinBox::down-arrow,QDoubleSpinBox::down-arrow{image:url(__SPINDOWN__);width:9px;height:9px;}"
         "QSpinBox::down-arrow:hover,QDoubleSpinBox::down-arrow:hover{image:url(__SPINDOWNH__);}"
-        "QComboBox{"
-        "background:#2c2c2c;color:#E6E6E6;"
-        "border:1px solid #262626;padding:5px 8px;padding-right:26px;"
-        "font-size:11px;border-radius:4px;}"
-        "QComboBox::drop-down{"
-        "subcontrol-origin:padding;subcontrol-position:top right;"
-        "width:20px;border:none;border-left:1px solid #262626;background:#404040;"
-        "border-top-right-radius:4px;border-bottom-right-radius:4px;}"
-        "QComboBox::drop-down:hover{background:#5a5a5a;}"
-        "QComboBox::down-arrow{image:url(__SPINDOWN__);width:11px;height:11px;}"
-        "QComboBox:hover::down-arrow,QComboBox::down-arrow:hover{image:url(__SPINDOWNH__);}"
-        "QComboBox:on{border:1px solid #E8820C;}"
-        "QComboBox:hover{border:1px solid #E8820C;}"
-        "QComboBox QAbstractItemView{"
-        "background:#404040;color:#E6E6E6;border:1px solid #262626;outline:0;"
-        "selection-background-color:#E8820C;selection-color:#241606;}"
-        "QComboBox QAbstractItemView::item{padding:5px 8px;min-height:24px;}"
-        "QComboBox QAbstractItemView::item:disabled{"
-        "color:#cc4444;font-style:italic;}"
+        # NOTE: QComboBox is intentionally NOT styled here. Combos are styled ONLY by the
+        # shared pxl_ui.theme.tool_qss() (native single arrow, exactly like the Maya tool).
+        # A second per-widget QComboBox arrow rule on top of the shared sheet is what caused
+        # the "double-arrow" bug. Single source of truth = the shared stylesheet. Do not re-add.
     )
     _LBL  = "QLabel{color:#A8A8A8;font-size:11px;background:transparent;}"
     _STAT = ("QLabel{color:#A8A8A8;font-size:10px;font-style:italic;"
@@ -1917,7 +1913,8 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
     def _combo(self, items):
         c = QtWidgets.QComboBox()
         c.addItems(items)
-        c.setStyleSheet(self._FIELD)
+        # No per-widget stylesheet: combos are styled solely by the shared tool_qss()
+        # (native single arrow) — identical to the Maya tool. See _FIELD note above.
         return c
 
     def _code_combo(self, pairs):
@@ -1926,13 +1923,36 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         c = QtWidgets.QComboBox()
         for code, label in pairs:
             c.addItem(label, code)
-        c.setStyleSheet(self._FIELD)
+        # Styled solely by the shared tool_qss() (single source of truth).
         return c
 
     @staticmethod
     def _combo_code(combo):
         d = combo.currentData()
         return (d if d is not None else combo.currentText()).strip()
+
+    @staticmethod
+    def _select_combo(combo, text):
+        """Select the first ENABLED item whose label contains `text` (case-insensitive);
+        fall back to the first enabled item, then index 0. Used to establish the PXLsuite
+        default selections (Studio / Beauty / HDRI) independent of saved prefs."""
+        def _enabled(i):
+            try:
+                it = combo.model().item(i)
+                return it is None or it.isEnabled()
+            except Exception:
+                return True
+        target = text.lower()
+        for i in range(combo.count()):
+            if target in combo.itemText(i).lower() and _enabled(i):
+                combo.setCurrentIndex(i)
+                return
+        for i in range(combo.count()):
+            if _enabled(i):
+                combo.setCurrentIndex(i)
+                return
+        if combo.count():
+            combo.setCurrentIndex(0)
 
     def _chk(self, text, checked=True):
         c = QtWidgets.QCheckBox(text)
@@ -2475,7 +2495,7 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
 
         # Format
         self.combo_project_fmt = QtWidgets.QComboBox()
-        self.combo_project_fmt.setStyleSheet(self._FIELD)
+        # Styled by shared tool_qss() only (single source / single arrow).
         default_fmt_idx = 0
         try:
             fmts = sorted(nuke.formats(), key=lambda f: -(f.width() * f.height()))
@@ -2716,7 +2736,11 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         )
         self.combo_render = self._combo(RENDER_OPTIONS)
         self.combo_back   = self._combo(BACK_OPTIONS)
-        self.combo_back.setCurrentIndex(1)
+        # PXLsuite standard defaults (established on every launch — NOT restored from prefs):
+        #   HDRI = Studio (first available if Studio is missing) · Render = Beauty · Background = HDRI
+        self._select_combo(self.combo_hdri,   "Studio")   # -> "01 - Studio" (fallback: first item)
+        self._select_combo(self.combo_render, "Beauty")
+        self._select_combo(self.combo_back,   "HDRI")
 
         # BG color widget
         bgw = QtWidgets.QWidget()
@@ -3381,7 +3405,7 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         fwl.setContentsMargins(0, 0, 0, 0)
         fwl.setSpacing(6)
         self.combo_write_fmt = QtWidgets.QComboBox()
-        self.combo_write_fmt.setStyleSheet(self._FIELD)
+        # Styled by shared tool_qss() only (single source / single arrow).
         for fmt in ["png", "exr", "tiff", "mp4"]:
             self.combo_write_fmt.addItem(fmt)
         self.combo_write_fmt.setCurrentText("png")   # default export format
@@ -3395,7 +3419,7 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         cswl = QtWidgets.QHBoxLayout(cs_wrap)
         cswl.setContentsMargins(0, 0, 0, 0)
         self.combo_write_cs = QtWidgets.QComboBox()
-        self.combo_write_cs.setStyleSheet(self._FIELD)
+        # Styled by shared tool_qss() only (single source / single arrow).
         for cs in ["Output - Rec.709", "Output - sRGB", "ACES - ACEScg",
                    "Utility - Linear - sRGB", "scene_linear"]:
             self.combo_write_cs.addItem(cs)
@@ -4181,9 +4205,9 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         fps_idx = FPS_OPTIONS.index(saved_fps) if saved_fps in FPS_OPTIONS else FPS_OPTIONS.index(FPS_DEFAULT)
         self.combo_fps.setCurrentIndex(fps_idx)
         _sv(self.sp_font_scale,   "font_scale")
-        _sc(self.combo_hdri,      "hdri_index")
-        _sc(self.combo_render,    "render_index")
-        _sc(self.combo_back,      "back_index")
+        # HDRI / Render Type / Background are NOT restored from prefs — PXLsuite standard
+        # defaults (Studio / Beauty / HDRI) are established at build and on every launch.
+        # (Live comp state still overrides them when a comp is connected.)
 
         bg = p.get("bg_color")
         if isinstance(bg, (list, tuple)) and len(bg) == 3:
@@ -4324,10 +4348,9 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
             _sl(self.f_asset_user,     "asset_user")
             _sv(self.sp_font_scale,    "font_scale")
 
-            # Visual options
-            _sc(self.combo_hdri,   "hdri_index")
-            _sc(self.combo_render, "render_index")
-            _sc(self.combo_back,   "back_index")
+            # Visual options — HDRI / Render Type / Background are NOT restored from prefs;
+            # PXLsuite standard defaults (Studio / Beauty / HDRI) hold unless a connected
+            # comp's live state overrides them.
             bg = p.get("bg_color")
             if isinstance(bg, (list, tuple)) and len(bg) == 3:
                 self.btn_bg_color._rgb = tuple(bg)
