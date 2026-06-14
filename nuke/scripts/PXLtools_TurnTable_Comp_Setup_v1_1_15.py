@@ -1,7 +1,7 @@
 # ==============================================================================
 # Tool Name:   PXLtools TurnTable Comp Setup
-# Version:     1.1.14
-# Checkpoint:  CP072
+# Version:     1.1.15
+# Checkpoint:  CP073
 # Author:      PXLsuite / BlackMamba3D
 # Description: Live control panel for the TurnTable comp. Drives comp nodes
 #              directly — no TT_Settings relay, no Apply button.
@@ -9,6 +9,14 @@
 # Platform:    Nuke 15 (Python 3) | PySide2
 #
 # Changelog:
+#   1.1.15      - CP073 - Nuke parity batch (part 1): default BG colour white +
+#                         wire colour cyan; Asset Info icon image->box; Export PNG
+#                         default; Write node 'create directories' set robustly (tries
+#                         create_directories/create_dir) so render makes the folder; added
+#                         'double-click the Write node and click Render' instruction.
+#                         (Deferred to part 2: combo centre-arrow, no-folder->instructions,
+#                         preliminary icon, render-location green-when-set, references load
+#                         button, MP4 export, RGB colourspace default, output capsule.)
 #   1.1.14      - CP072 - Rebrand/rename — file is now
 #                         PXLtools_TurnTable_Comp_Setup_v1_1_14.py (PXLtools prefix +
 #                         real version in filename, under the PXLsuite umbrella);
@@ -386,7 +394,7 @@ STATUS_ERR   = "#803838"
 STATUS_IDLE  = "#383838"
 STATUS_WARN  = "#5a4a10"
 
-VERSION   = "1.1.14"
+VERSION   = "1.1.15"
 TOOL_NAME = "TurnTable Comp Setup"
 
 # Comp template is resolved at import time relative to the Working Folder
@@ -1774,7 +1782,7 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         sec_asset  = self._collapsible("3   ASSET INFO",
                                         self._section_asset_body(),
                                         starts_expanded=False,
-                                        icon_name="image", accent="#9B7EDE")
+                                        icon_name="box", accent="#9B7EDE")
 
         self._cs_btn_tmpl   = sec_tmpl.findChildren(QtWidgets.QPushButton)[0]
         self._cs_btn_folder = sec_folder.findChildren(QtWidgets.QPushButton)[0]
@@ -2668,7 +2676,7 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         bgw.setStyleSheet(f"background:{self.BODY_BG};")
         bgl = QtWidgets.QHBoxLayout(bgw)
         bgl.setContentsMargins(0, 0, 0, 0)
-        self.btn_bg_color = self._color_btn(0.0, 0.0, 0.0)
+        self.btn_bg_color = self._color_btn(1.0, 1.0, 1.0)   # default: white
         bgl.addWidget(self.btn_bg_color)
         bgl.addStretch()
         # Wire color widget
@@ -2676,7 +2684,7 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         wfw.setStyleSheet(f"background:{self.BODY_BG};")
         wfl = QtWidgets.QHBoxLayout(wfw)
         wfl.setContentsMargins(0, 0, 0, 0)
-        self.btn_wf_color = self._color_btn(0.8, 0.8, 0.8)
+        self.btn_wf_color = self._color_btn(0.0, 1.0, 1.0)   # default: cyan
         wfl.addWidget(self.btn_wf_color)
         wfl.addStretch()
 
@@ -3327,8 +3335,10 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         fwl.setSpacing(6)
         self.combo_write_fmt = QtWidgets.QComboBox()
         self.combo_write_fmt.setStyleSheet(self._FIELD)
-        for fmt in ["exr", "png", "tiff"]:
+        for fmt in ["png", "exr", "tiff"]:
             self.combo_write_fmt.addItem(fmt)
+        self.combo_write_fmt.setCurrentText("png")   # default export format
+        # TODO (tomorrow): add "mp4" — needs file_type=mov + h264 codec config + testing.
         fwl.addWidget(self.combo_write_fmt)
         fwl.addStretch()
         vl.addWidget(self._row("Format", fmt_wrap))
@@ -3373,6 +3383,14 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         brl.addWidget(btn_create, 1)
         brl.addWidget(btn_apply,  1)
         vl.addWidget(btn_row)
+
+        # Final step instruction (the Write node has create-directories enabled, so
+        # the output folder is made automatically on render).
+        write_hint = QtWidgets.QLabel("Now double-click the Write node and click Render.")
+        write_hint.setStyleSheet(
+            "color:#E8B84B;font-size:11px;background:transparent;padding:4px 0;")
+        write_hint.setWordWrap(True)
+        vl.addWidget(write_hint)
 
         # Connections
         self.f_write_base.editingFinished.connect(self._on_write_changed)
@@ -3442,10 +3460,14 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
             node["colorspace"].setValue(cs)
         except Exception:
             pass
-        try:
-            node["create_dir"].setValue(True)
-        except Exception:
-            pass
+        # Enable "create directories" so render makes the output folder automatically
+        # (knob name differs across Nuke versions — set whichever exists).
+        for _kn in ("create_directories", "create_dir"):
+            try:
+                node[_kn].setValue(True)
+                break
+            except Exception:
+                continue
         if hasattr(self, "lbl_write_preview"):
             self.lbl_write_preview.setText(f"->  {path}")
 
