@@ -1,7 +1,7 @@
 # ==============================================================================
 # Tool Name:   PXLtools TurnTable Comp Setup
-# Version:     1.1.20
-# Checkpoint:  CP078
+# Version:     1.1.21
+# Checkpoint:  CP079
 # Author:      PXLsuite / BlackMamba3D
 # Description: Live control panel for the TurnTable comp. Drives comp nodes
 #              directly — no TT_Settings relay, no Apply button.
@@ -9,6 +9,11 @@
 # Platform:    Nuke 15 (Python 3) | PySide2
 #
 # Changelog:
+#   1.1.21      - CP079 - Pre-stable audit polish (code-reviewer + verifier pass): UI-kit init
+#                         failure now logs to the Nuke console instead of failing silently;
+#                         _space_free() hardened (checks GetShortPathNameW return length, adds a
+#                         mkdtemp last-resort fallback); removed dead hdri/render/back index keys
+#                         from saved prefs (they are never restored by design). No behaviour change.
 #   1.1.20      - CP078 - Combo single-arrow VERIFIED in real Nuke Qt5 (rendered the actual
 #                         widget via Nuke --tg and looked at it). The double-arrow had TWO
 #                         causes, both fixed in the shared tool_qss() (single source -> Maya
@@ -448,7 +453,7 @@ STATUS_ERR   = "#803838"
 STATUS_IDLE  = "#383838"
 STATUS_WARN  = "#5a4a10"
 
-VERSION   = "1.1.20"
+VERSION   = "1.1.21"
 TOOL_NAME = "TurnTable Comp Setup"
 
 # Comp template is resolved at import time relative to the Working Folder
@@ -1546,7 +1551,8 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
                         return _p
                     try:                       # 8.3 short path drops spaces (C:\Users\EVILKN~1\...)
                         _b = _ctypes.create_unicode_buffer(1024)
-                        if _ctypes.windll.kernel32.GetShortPathNameW(_p, _b, 1024) and " " not in _b.value:
+                        _n = _ctypes.windll.kernel32.GetShortPathNameW(_p, _b, 1024)
+                        if 0 < _n < 1024 and " " not in _b.value:
                             return _b.value
                     except Exception:
                         pass
@@ -1557,6 +1563,12 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
                                 return _cand
                         except Exception:
                             pass
+                    try:                       # last resort: a fresh temp dir (no spaces on most setups)
+                        _md = _tf.mkdtemp(prefix="pxlui_")
+                        if " " not in _md:
+                            return _md
+                    except Exception:
+                        pass
                     return _p
                 _td = _space_free(_tf.gettempdir())
                 _chkpath = os.path.join(_td, "_pxlui_check_nk.png")
@@ -1602,7 +1614,14 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
                         .replace("__SPINDOWNH__", _qq(_arrow["dnh"]))
                         .replace("__SLH__",       _qq(_slh["n"]))
                         .replace("__SLHH__",      _qq(_slh["h"])))
-        except Exception:
+        except Exception as _ui_exc:
+            # Don't fail silently — a broken UI kit is exactly the class of bug that hid the
+            # arrow issue. Surface it in the Nuke console, then fall back to an unstyled dialog.
+            try:
+                import nuke as _nk
+                _nk.tprint("PXLtools: UI kit init failed, using fallback style - {}".format(_ui_exc))
+            except Exception:
+                print("PXLtools: UI kit init failed, using fallback style -", _ui_exc)
             _qss = ""
         # QSS url() must be QUOTED — temp paths can contain spaces (e.g.
         # "C:/Users/Evil Knight/..."); an unquoted url(...) with a space fails to load,
@@ -4165,9 +4184,8 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
             "asset_version": self.f_asset_version.text().strip(),
             "asset_user":    self.f_asset_user.text().strip(),
             "font_scale":    self.sp_font_scale.value(),
-            "hdri_index":    self.combo_hdri.currentIndex(),
-            "render_index":  self.combo_render.currentIndex(),
-            "back_index":    self.combo_back.currentIndex(),
+            # hdri_index / render_index / back_index are intentionally NOT saved or restored:
+            # PXLsuite standard defaults (Studio / Beauty / HDRI) are established on every launch.
             "bg_color":      list(self.btn_bg_color._rgb),
             "wf_color":      list(self.btn_wf_color._rgb),
             "compfx":        self.chk_compfx.isChecked(),
