@@ -4,7 +4,13 @@
 > exact icons / fonts / sizes / behavior — do not reinvent. Tool:
 > `PXLtools_TurnTable_Comp_Setup` (Nuke). Logged 2026-06-13 from Cris's in-Nuke review.
 
-## Status (2026-06-13)
+## Status (2026-06-13) — PART 2 DONE in comp v1.1.16 (awaiting Cris's in-Nuke test)
+All 9 items applied. #1 combo arrow: root-caused to unquoted QSS `url()` + a space in the temp
+path ("Evil Knight") -> native arrow bleed; fixed by quoting the substituted url paths (verify
+live). #6 MP4: mov/h264 with version-varying knob names set defensively (verify live). Then
+promote v1.0.0 -> stable.
+
+## Status (2026-06-13 — earlier)
 **Part 1 DONE in comp v1.1.15** (safe/deterministic): #2 BG white + wire cyan, #5 Asset Info
 icon ->box, #8(png) PNG default, #9 create-directories robust + "double-click Write node and
 click Render" instruction. Pushed + in beta v1.0.0.

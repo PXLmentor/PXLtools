@@ -1,6 +1,6 @@
 # ==============================================================================
 # Tool Name:   PXLtools — Nuke menu.py
-# Version:     3.3.0
+# Version:     3.4.0
 # Changelog (3.3.0): removed the "↻ Update PXLtools" command (updates come from the
 #   GitHub release flow); the menu now SKIPS tools whose versioned file isn't present
 #   so the public TurnTable-only package shows only the TurnTable Comp Setup command.
@@ -20,6 +20,8 @@
 #   Do NOT pass full paths — Nuke will silently ignore them.
 #
 # CHANGELOG:
+#   3.4.0  - Auto-update on launch: checks GitHub for a newer STABLE release
+#            (once/day) via pxl_ui.pxl_update and offers a one-click update.
 #   3.2.0  - Auto-update: new "↻ Update PXLtools" menu command (icon_update.png)
 #            re-scans the scripts folder, resolves the NEWEST version of each tool
 #            by filename and rebuilds the menu + reloads modules. Tool table now
@@ -120,3 +122,11 @@ def build_menu():
 
 
 build_menu()
+
+# Auto-update on launch: check GitHub for a newer STABLE release (throttled once/day),
+# offer a one-click update. Safe — never breaks menu loading.
+try:
+    from pxl_ui import pxl_update
+    pxl_update.check(channel="stable", dcc="nuke")
+except Exception:
+    pass
