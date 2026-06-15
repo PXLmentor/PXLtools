@@ -167,15 +167,26 @@ def build_asset_zip():
     out = os.path.join(BUILD_DIR, "PXLtools-assets.zip")
     if os.path.isfile(out):
         os.remove(out)
+    # Never ship these: Arnold-generated .tx mip textures (regenerated on load, ~hundreds of MB),
+    # Maya swatch/autosave caches, and session scratch files. Keeps the pack lean + reproducible.
+    SKIP_EXT  = (".tx",)
+    SKIP_DIRS = (".mayaSwatches", "autosave")
+    SKIP_FILE = ("tt_session.json",)
+    skipped = 0
     # Zip ONLY TurnTable_ROOT, stored under a top-level "TurnTable_ROOT/" prefix
     # (NOT the whole TurnTable_Package — that holds the old 210MB zip + stale copies).
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
-        for root, _dirs, files in os.walk(ASSET_SRC):
+        for root, dirs, files in os.walk(ASSET_SRC):
+            dirs[:] = [d for d in dirs if d not in SKIP_DIRS]   # prune junk dirs in-place
             for f in files:
+                if f.lower().endswith(SKIP_EXT) or f in SKIP_FILE:
+                    skipped += 1
+                    continue
                 full = os.path.join(root, f)
                 rel  = os.path.join("TurnTable_ROOT", os.path.relpath(full, ASSET_SRC))
                 zf.write(full, rel)
-    print("  asset zip: {} ({:.1f} MB)".format(out, os.path.getsize(out) / 1e6))
+    print("  asset zip: {} ({:.1f} MB)  [skipped {} junk/.tx files]".format(
+        out, os.path.getsize(out) / 1e6, skipped))
     return out
 
 
