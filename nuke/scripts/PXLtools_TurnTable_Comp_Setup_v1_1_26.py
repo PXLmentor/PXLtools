@@ -1,7 +1,7 @@
 # ==============================================================================
 # Tool Name:   PXLtools TurnTable Comp Setup
-# Version:     1.1.25
-# Checkpoint:  CP083
+# Version:     1.1.26
+# Checkpoint:  CP084
 # Author:      PXLsuite / BlackMamba3D
 # Description: Live control panel for the TurnTable comp. Drives comp nodes
 #              directly — no TT_Settings relay, no Apply button.
@@ -9,6 +9,14 @@
 # Platform:    Nuke 15 (Python 3) | PySide2
 #
 # Changelog:
+#   1.1.26      - CP084 - Export tab rework (render-verified in Nuke): Name + Auto + version on
+#                         ONE line; version field grayed with a "vXXX" hint when off, and
+#                         enabled + empty with a "v001" hint when "Add version" is ticked — the
+#                         output-name preview at the bottom immediately shows "_v001" (the
+#                         default used on render) and updates live as you type. The
+#                         "double-click the Write node and click Render" instruction is now
+#                         HIDDEN until a Write node is actually created/applied, then it appears.
+#                         (Auto button kept.)
 #   1.1.25      - CP083 - STRICT STEP-GATING (parity with the Maya tool's UX): in every numbered
 #                         sequence the done step is GREEN, the current step is ORANGE + enabled,
 #                         and future steps are GRAY + DISABLED (their buttons cannot be clicked
@@ -486,7 +494,7 @@ STATUS_ERR   = "#803838"
 STATUS_IDLE  = "#383838"
 STATUS_WARN  = "#5a4a10"
 
-VERSION   = "1.1.25"
+VERSION   = "1.1.26"
 TOOL_NAME = "TurnTable Comp Setup"
 
 # Comp template is resolved at import time relative to the Working Folder
@@ -3583,35 +3591,29 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         # Output folder
         self.f_write_base = self._path_row(vl, "Output Folder", folder=True)
 
-        # Name field + Auto button
+        # Name + Auto + optional version — all on ONE line:
+        #   Name  [ ............ ] [Auto] [x Add version] [vXXX]
         name_wrap = QtWidgets.QWidget()
         name_wrap.setStyleSheet(f"background:{self.BODY_BG};")
         nwl = QtWidgets.QHBoxLayout(name_wrap)
         nwl.setContentsMargins(0, 0, 0, 0)
         nwl.setSpacing(6)
         self.f_write_name = self._field(placeholder="e.g. Scion_HDRI01_Beauty")
+        self.f_write_name.setFixedHeight(self._INLINE_H)
         self.btn_write_name_auto = self._btn("Auto", primary=False)
         self.btn_write_name_auto.setFixedSize(92, self._INLINE_H)   # matches Browse… (paired size)
-        nwl.addWidget(self.f_write_name, 1)
-        nwl.addWidget(self.btn_write_name_auto)
-        vl.addWidget(self._row("Name", name_wrap))
-
-        # Optional version suffix
-        ver_wrap = QtWidgets.QWidget()
-        ver_wrap.setStyleSheet(f"background:{self.BODY_BG};")
-        vwl = QtWidgets.QHBoxLayout(ver_wrap)
-        vwl.setContentsMargins(0, 0, 0, 0)
-        vwl.setSpacing(6)
         self.chk_write_ver = QtWidgets.QCheckBox("Add version")
         self.chk_write_ver.setStyleSheet(self._CHK)
         self.chk_write_ver.setChecked(False)
-        self.f_write_ver = self._field(placeholder="v001")
-        self.f_write_ver.setFixedWidth(70)
-        self.f_write_ver.setEnabled(False)
-        vwl.addWidget(self.chk_write_ver)
-        vwl.addWidget(self.f_write_ver)
-        vwl.addStretch()
-        vl.addWidget(ver_wrap)
+        self.f_write_ver = self._field(placeholder="vXXX")   # vXXX = clearly a hint, not a value
+        self.f_write_ver.setFixedWidth(64)
+        self.f_write_ver.setFixedHeight(self._INLINE_H)
+        self.f_write_ver.setEnabled(False)                   # grayed until "Add version" is ticked
+        nwl.addWidget(self.f_write_name, 1, QtCore.Qt.AlignVCenter)
+        nwl.addWidget(self.btn_write_name_auto, 0, QtCore.Qt.AlignVCenter)
+        nwl.addWidget(self.chk_write_ver, 0, QtCore.Qt.AlignVCenter)
+        nwl.addWidget(self.f_write_ver, 0, QtCore.Qt.AlignVCenter)
+        vl.addWidget(self._row("Name", name_wrap))
 
         vl.addWidget(self._divider())
 
@@ -3676,22 +3678,32 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         brl.addWidget(btn_apply,  1)
         vl.addWidget(btn_row)
 
-        # Final step instruction (the Write node has create-directories enabled, so
-        # the output folder is made automatically on render).
-        write_hint = QtWidgets.QLabel("Now double-click the Write node and click Render.")
-        write_hint.setStyleSheet(
+        # Final-step instruction — HIDDEN until the Write node is actually created, then it
+        # appears to tell the user the next move. (The Write node has create-directories on,
+        # so the output folder is made automatically on render.)
+        self.write_hint = QtWidgets.QLabel("Now double-click the Write node and click Render.")
+        self.write_hint.setStyleSheet(
             "color:#E8B84B;font-size:11px;background:transparent;padding:4px 0;")
-        write_hint.setWordWrap(True)
-        vl.addWidget(write_hint)
+        self.write_hint.setWordWrap(True)
+        self.write_hint.setVisible(False)
+        vl.addWidget(self.write_hint)
+
+        # Version toggle: enable + show the "v001" default-hint when on; gray + "vXXX" when off.
+        def _on_ver_toggled(checked):
+            self.f_write_ver.setEnabled(checked)
+            self.f_write_ver.clear()
+            self.f_write_ver.setPlaceholderText("v001" if checked else "vXXX")
+            if checked:
+                self.f_write_ver.setFocus()
+            self._on_write_changed()
 
         # Connections
         self.f_write_base.editingFinished.connect(self._on_write_changed)
         self.f_write_name.editingFinished.connect(self._on_write_changed)
         self.combo_write_fmt.currentIndexChanged.connect(lambda _: self._on_write_changed())
         self.combo_write_cs.currentIndexChanged.connect(lambda _: self._on_write_changed())
-        self.chk_write_ver.toggled.connect(self.f_write_ver.setEnabled)
-        self.chk_write_ver.toggled.connect(lambda _: self._on_write_changed())
-        self.f_write_ver.editingFinished.connect(self._on_write_changed)
+        self.chk_write_ver.toggled.connect(_on_ver_toggled)
+        self.f_write_ver.textChanged.connect(lambda _: self._on_write_changed())   # live preview
         self.btn_write_name_auto.clicked.connect(self._auto_write_name)
         btn_create.clicked.connect(self._do_create_write_node)
         btn_apply.clicked.connect(self._do_apply_write_node)
@@ -3707,9 +3719,10 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
             name = "TT_output"
         ver_suffix = ""
         if hasattr(self, "chk_write_ver") and self.chk_write_ver.isChecked():
-            ver = self.f_write_ver.text().strip() if hasattr(self, "f_write_ver") else ""
-            if ver:
-                ver_suffix = f"_{ver}"
+            # Default to v001 so ticking "Add version" immediately shows the version in the
+            # preview (and is what's used on render) even before the user types their own.
+            ver = (self.f_write_ver.text().strip() if hasattr(self, "f_write_ver") else "") or "v001"
+            ver_suffix = f"_{ver}"
         fmt = self.combo_write_fmt.currentText() if hasattr(self, "combo_write_fmt") else "exr"
         if fmt == "mp4":
             filename = f"{name}{ver_suffix}.mp4"            # single movie file (no frame pad)
@@ -3800,6 +3813,8 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         self._apply_write_settings(w, path, fmt, cs)
         self._set_status(self.lbl_write_status,
                          f"'{node_name}' created — {fmt.upper()}, {cs}.", "ok")
+        if hasattr(self, "write_hint"):
+            self.write_hint.setVisible(True)   # now show the "double-click + Render" instruction
 
     def _do_apply_write_node(self):
         path = self._write_resolved_path()
@@ -3827,6 +3842,8 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         self._apply_write_settings(w, path, fmt, cs)
         self._set_status(self.lbl_write_status,
                          f"Applied to '{w.name()}' — {fmt.upper()}, {cs}.", "ok")
+        if hasattr(self, "write_hint"):
+            self.write_hint.setVisible(True)   # a Write node is ready -> show the Render hint
 
     # ── SLOTS ─────────────────────────────────────────────────────────────
 
