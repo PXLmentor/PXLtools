@@ -1,7 +1,7 @@
 # ==============================================================================
 # Tool Name:   PXLtools TurnTable Comp Setup
-# Version:     1.1.24
-# Checkpoint:  CP082
+# Version:     1.1.25
+# Checkpoint:  CP083
 # Author:      PXLsuite / BlackMamba3D
 # Description: Live control panel for the TurnTable comp. Drives comp nodes
 #              directly — no TT_Settings relay, no Apply button.
@@ -9,6 +9,17 @@
 # Platform:    Nuke 15 (Python 3) | PySide2
 #
 # Changelog:
+#   1.1.25      - CP083 - STRICT STEP-GATING (parity with the Maya tool's UX): in every numbered
+#                         sequence the done step is GREEN, the current step is ORANGE + enabled,
+#                         and future steps are GRAY + DISABLED (their buttons cannot be clicked
+#                         until the previous step is done). State is derived from REALITY, so a
+#                         step already satisfied on launch comes up green and the flow sits on the
+#                         first unfinished step. PRELIMINARY: 1 ACES -> 2 Browse WF -> 3 Set WF,
+#                         each gated on the prior. COMP SETUP: Import -> Apply (locked until a
+#                         template is loaded AND a render folder is chosen) -> Auto-fill (locked
+#                         until Apply). Also fixed a latent crash: `_check_step3_complete()` was
+#                         called but never defined. Verified by rendering in real Nuke + measuring
+#                         each step button's enabled state across fresh/step-1-done/step-2-done.
 #   1.1.24      - CP082 - Three fixes, each render-verified in real Nuke (Qt5):
 #                         (1) Browse button "sat low + bottom cropped + not centered to the
 #                         field" — root cause was setFixedSize(92,32) vs the button QSS
@@ -475,7 +486,7 @@ STATUS_ERR   = "#803838"
 STATUS_IDLE  = "#383838"
 STATUS_WARN  = "#5a4a10"
 
-VERSION   = "1.1.24"
+VERSION   = "1.1.25"
 TOOL_NAME = "TurnTable Comp Setup"
 
 # Comp template is resolved at import time relative to the Working Folder
@@ -1591,6 +1602,7 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         self._block_live      = True
         self._scan_data       = None
         self._template_loaded = False
+        self._folder_applied  = False   # COMP SETUP step 2 done -> unlocks step 3 (Asset Info)
 
         self.setWindowTitle(f"PXL {TOOL_NAME}  v{VERSION}")
         self.setMinimumSize(680, 500)
@@ -1738,6 +1750,9 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
             self._update_node_indicator()
         else:
             self._update_node_indicator()
+        # Re-gate COMP SETUP from the now-known real state (e.g. already-connected comp ->
+        # step 1 done, step 2 active). Already-satisfied steps come up green.
+        self._update_comp_steps()
 
     # ── HEADER ────────────────────────────────────────────────────────────
 
@@ -1966,7 +1981,26 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         vl.addWidget(sec_tmpl)
         vl.addWidget(sec_folder)
         vl.addWidget(sec_asset)
+        self._update_comp_steps()   # initial gating: step 1 active, steps 2 & 3 gray+disabled
         return w
+
+    def _update_comp_steps(self):
+        """Gate the COMP SETUP forward-action buttons from REAL state: a step's button is
+        gray + DISABLED until the previous step is done (done=green, active=orange+enabled).
+        Driven by self._template_loaded (step 1) and self._folder_applied (step 2)."""
+        loaded  = bool(getattr(self, "_template_loaded", False))
+        applied = bool(getattr(self, "_folder_applied", False))
+        has_folder = bool(getattr(self, "f_render_folder", None)
+                          and self.f_render_folder.text().strip())
+        if hasattr(self, "btn_import"):
+            self._set_step_btn(self.btn_import, "done" if loaded else "active")
+        if hasattr(self, "btn_apply_settings"):
+            # Locked until the template is loaded AND a render folder is chosen.
+            apply_state = ("done" if applied
+                           else ("active" if (loaded and has_folder) else "locked"))
+            self._set_step_btn(self.btn_apply_settings, apply_state)
+        if hasattr(self, "btn_af"):
+            self._set_step_btn(self.btn_af, "active" if applied else "locked")
 
     def _cs_after_import(self):
         """Advance COMP SETUP to step 2 after a successful template import."""
@@ -1977,6 +2011,7 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         if hasattr(self, "_cs_sec_tmpl"):
             self._cs_sec_tmpl.set_state("done")      # step 1 -> green
             self._cs_sec_folder.set_state("active")  # step 2 -> orange
+        self._update_comp_steps()
 
     def _cs_after_folder(self):
         """Advance COMP SETUP to step 3 after Apply Project Settings succeeds."""
@@ -2444,30 +2479,6 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         btn_check_aces.setStyleSheet(self._STEP_BTN["active"])   # gray + orange border
         vl.addWidget(btn_check_aces)
 
-        def _check_aces():
-            try:
-                cm = nuke.root().knob('colorManagement').value()
-                if cm == "OCIO":
-                    self._set_status(self.lbl_aces_status,
-                                     "ACES 1.2 active — OCIO color management confirmed.", "ok")
-                    self._set_badge(self._prelim_aces_badge, "done")
-                    self._set_confirm(self._prelim_aces_confirm, True)
-                    btn_check_aces.setStyleSheet(self._STEP_BTN["done"])   # pale-green done (Maya parity)
-                else:
-                    self._set_status(self.lbl_aces_status,
-                                     f"Color management is '{cm}' — set to OCIO in "
-                                     "Edit > Project Settings > Color.", "err")
-                    self._set_badge(self._prelim_aces_badge, "active")
-                    self._set_confirm(self._prelim_aces_confirm, False)
-                    btn_check_aces.setStyleSheet(self._STEP_BTN["active"])
-            except Exception as exc:
-                self._set_status(self.lbl_aces_status, f"Could not check: {exc}", "err")
-
-        btn_check_aces.clicked.connect(_check_aces)
-        if not _aces_checked_once:
-            _check_aces()
-            _aces_checked_once = True
-
         vl.addWidget(self._divider())
 
         # ── Step 2 — BROWSE THE WORKING FOLDER ────────────────────────────
@@ -2527,14 +2538,48 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         self.lbl_proj_status = self._stat()
         vl.addWidget(self.lbl_proj_status)
 
-        def _upd_browse_state():
-            # Step 2 (Browse): orange/active until a path is in the field, then green/done.
-            has = bool(self.f_proj_dir.text().strip())
-            self._set_badge(self._prelim_browse_badge, "done" if has else "active")
-            self._set_confirm(self._prelim_browse_confirm, has)
-            btn_browse_proj.setStyleSheet(self._STEP_BTN["done"] if has
-                                          else self._STEP_BTN["active"])
-        self.f_proj_dir.textChanged.connect(lambda _=None: _upd_browse_state())
+        # ── Gating state machine — derive every step's state from REALITY ─────
+        # done (green) / active (orange + enabled) / locked (gray + DISABLED, un-clickable).
+        # A step is active only once the previous step is done; a step already satisfied on
+        # launch comes up green and the flow sits on the first unfinished step.
+        def _update_prelim_steps():
+            aces_ok  = bool(getattr(self, "_aces_ok", False))
+            has_path = bool(self.f_proj_dir.text().strip())
+            wf_set   = bool(getattr(self, "_wf_is_comp", False))
+            # Step 1 — ACES (the first step; always reachable, never locked)
+            self._set_badge(self._prelim_aces_badge, "done" if aces_ok else "active")
+            self._set_step_btn(btn_check_aces, "done" if aces_ok else "active")
+            self._set_confirm(self._prelim_aces_confirm, aces_ok)
+            # Step 2 — Browse working folder (locked until ACES is done)
+            b_state = "locked" if not aces_ok else ("done" if has_path else "active")
+            self._set_badge(self._prelim_browse_badge, b_state)
+            self._set_step_btn(btn_browse_proj, b_state)
+            self._set_confirm(self._prelim_browse_confirm, aces_ok and has_path)
+            self.f_proj_dir.setEnabled(aces_ok)        # can't enter a path before ACES is OK
+            # Step 3 — Set working folder (locked until a path is present)
+            s_state = ("locked" if not (aces_ok and has_path)
+                       else ("done" if wf_set else "active"))
+            self._set_badge(self._prelim_setwf_badge, s_state)
+            self._set_step_btn(btn_set_proj, s_state)
+            self._set_confirm(self._prelim_setwf_confirm, wf_set)
+        self._update_prelim_steps = _update_prelim_steps
+
+        def _check_aces():
+            try:
+                cm = nuke.root().knob('colorManagement').value()
+                if cm == "OCIO":
+                    self._aces_ok = True
+                    self._set_status(self.lbl_aces_status,
+                                     "ACES 1.2 active — OCIO color management confirmed.", "ok")
+                else:
+                    self._aces_ok = False
+                    self._set_status(self.lbl_aces_status,
+                                     f"Color management is '{cm}' — set to OCIO in "
+                                     "Edit > Project Settings > Color.", "err")
+            except Exception as exc:
+                self._aces_ok = False
+                self._set_status(self.lbl_aces_status, f"Could not check: {exc}", "err")
+            _update_prelim_steps()
 
         def _browse_proj():
             start = self.f_proj_dir.text().strip() or "D:/"
@@ -2563,30 +2608,36 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
                 cur = nuke.root()["project_directory"].value() or "(not set)"
             except Exception:
                 cur = "(not available — open a comp first)"
-            # Update field if current differs from what Nuke actually has
             if cur not in ("(not set)", "(not available — open a comp first)"):
                 self.f_proj_dir.setText(cur.replace("\\", "/"))
             cur_norm = cur.replace("\\", "/")
-            ok = "_COMP" in cur_norm
-            _upd_browse_state()   # step 2 reflects whether a path is present
-            if ok:
-                self._set_status(self.lbl_proj_status,
-                                 f"Working folder: {cur_norm}", "ok")
-                self._set_badge(self._prelim_setwf_badge, "done")
-                self._set_confirm(self._prelim_setwf_confirm, True)
-                btn_set_proj.setStyleSheet(self._STEP_BTN["done"])   # pale-green done (Maya parity)
+            self._wf_is_comp = "_COMP" in cur_norm
+            if self._wf_is_comp:
+                self._set_status(self.lbl_proj_status, f"Working folder: {cur_norm}", "ok")
             else:
                 self._set_status(self.lbl_proj_status,
                                  "Working folder is NOT set to _COMP. Browse and click Set.",
                                  "warn")
-                self._set_badge(self._prelim_setwf_badge, "active")
-                self._set_confirm(self._prelim_setwf_confirm, False)
-                btn_set_proj.setStyleSheet(self._STEP_BTN["active"])
+            _update_prelim_steps()
 
+        self.f_proj_dir.textChanged.connect(lambda _=None: _update_prelim_steps())
+        btn_check_aces.clicked.connect(_check_aces)
         btn_browse_proj.clicked.connect(_browse_proj)
         btn_set_proj.clicked.connect(_set_proj)
         btn_refresh_proj.clicked.connect(_refresh_proj)
-        _refresh_proj()  # populate on build
+
+        # Initial state derived from reality: ACES auto-check (once per session) + read the
+        # current working folder. Already-satisfied steps come up green; the flow sits on the
+        # first unfinished step.
+        if not _aces_checked_once:
+            _check_aces()
+            _aces_checked_once = True
+        else:
+            try:
+                self._aces_ok = (nuke.root().knob('colorManagement').value() == "OCIO")
+            except Exception:
+                self._aces_ok = False
+        _refresh_proj()   # reads project_directory, sets wf state, runs the gate
 
         return w
 
@@ -2756,19 +2807,23 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
             ok = bool(self.f_render_folder.text().strip())
             self._set_badge(self._fld_browse_badge, "done" if ok else "active")
             self._set_confirm(self._fld_browse_confirm, ok)
+            self._update_comp_steps()   # a chosen folder unlocks Apply (step 2)
 
         def _mark_applied(*_):
             self._set_badge(self._fld_apply_badge, "done")
             self._set_confirm(self._fld_apply_confirm, True)
-            self.btn_apply_settings.setStyleSheet(self._STEP_BTN["done"])
+            self._folder_applied = True
+            self._update_comp_steps()   # step 2 done -> Apply green, Auto-fill unlocks
 
         self.f_render_folder.textChanged.connect(_mark_browse)
-        self.btn_apply_settings.clicked.connect(self._do_apply_project_settings)
-        self.btn_apply_settings.clicked.connect(_mark_applied)
-        self.btn_apply_settings.clicked.connect(
-            lambda: QtCore.QTimer.singleShot(400, self._cs_after_folder))
-        self.btn_apply_settings.clicked.connect(
-            lambda: QtCore.QTimer.singleShot(500, self._save_node_state))
+        def _on_apply_clicked():
+            # Only advance the flow (mark step 2 done, unlock step 3) on a CLEAN apply, so the
+            # green/unlock state reflects reality — not just that the button was clicked.
+            if self._do_apply_project_settings():
+                _mark_applied()
+                QtCore.QTimer.singleShot(400, self._cs_after_folder)
+                QtCore.QTimer.singleShot(500, self._save_node_state)
+        self.btn_apply_settings.clicked.connect(_on_apply_clicked)
         self.f_render_folder.editingFinished.connect(self._on_folder_changed)
         _mark_browse()  # initial badge state
         return w
@@ -3919,7 +3974,6 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
 
         QtCore.QTimer.singleShot(300, self._cs_collapse_asset)
         self._save_node_state()
-        self._check_step3_complete()
 
     def _update_hdri_combo(self, hdri_results):
         """Color-code HDRI combo items based on scan availability."""
@@ -4222,10 +4276,13 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         if errors:
             self._set_status(self.lbl_scan_status,
                              "Partial apply — " + "; ".join(errors), "warn")
+            return False
         else:
             fmt_label = self.combo_project_fmt.currentText().split("\u2014")[-1].strip()
             self._set_status(self.lbl_scan_status,
                              f"Applied: {fmt_label} | {fps_str} fps | frames {start}\u2013{end}", "ok")
+        return True
+
     def _do_reconnect(self):
         # If a group node is selected in Nuke, rebind to it
         try:
