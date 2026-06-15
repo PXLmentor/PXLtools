@@ -1,7 +1,7 @@
 # ==============================================================================
 # Tool Name:   PXLtools TurnTable Comp Setup
-# Version:     1.1.26
-# Checkpoint:  CP084
+# Version:     1.1.27
+# Checkpoint:  CP085
 # Author:      PXLsuite / BlackMamba3D
 # Description: Live control panel for the TurnTable comp. Drives comp nodes
 #              directly — no TT_Settings relay, no Apply button.
@@ -9,6 +9,9 @@
 # Platform:    Nuke 15 (Python 3) | PySide2
 #
 # Changelog:
+#   1.1.27      - CP085 - Tech Settings: vignette intensity default is now 0.25 on the comp too.
+#                         The UI slider/spinbox already defaulted to 0.25, but the push-defaults
+#                         path was sending 1.0 to the comp node — now sends 0.25 (in sync).
 #   1.1.26      - CP084 - Export tab rework (render-verified in Nuke): Name + Auto + version on
 #                         ONE line; version field grayed with a "vXXX" hint when off, and
 #                         enabled + empty with a "v001" hint when "Add version" is ticked — the
@@ -494,7 +497,7 @@ STATUS_ERR   = "#803838"
 STATUS_IDLE  = "#383838"
 STATUS_WARN  = "#5a4a10"
 
-VERSION   = "1.1.26"
+VERSION   = "1.1.27"
 TOOL_NAME = "TurnTable Comp Setup"
 
 # Comp template is resolved at import time relative to the Working Folder
@@ -4141,7 +4144,7 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         live_lut_mix(0.35)
         live_zdof_disable(True)         # chk=False → not False → True → zdof disabled
         live_vignette_disable(True)     # chk=True → bypass disable switch → vignette ON
-        live_vignette_intensity(1.0)
+        live_vignette_intensity(0.25)   # default intensity 0.25 (matches the UI slider/spinbox)
         live_shadow_disable(True)
         live_back_ramp_disable(True)
         live_occlusion_disable(False)
