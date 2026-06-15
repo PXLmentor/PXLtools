@@ -1,7 +1,7 @@
 # ==============================================================================
 # Tool Name:   PXLtools TurnTable Comp Setup
-# Version:     1.1.21
-# Checkpoint:  CP079
+# Version:     1.1.22
+# Checkpoint:  CP080
 # Author:      PXLsuite / BlackMamba3D
 # Description: Live control panel for the TurnTable comp. Drives comp nodes
 #              directly — no TT_Settings relay, no Apply button.
@@ -9,6 +9,10 @@
 # Platform:    Nuke 15 (Python 3) | PySide2
 #
 # Changelog:
+#   1.1.22      - CP080 - Render Location card: more vertical room so the Browse button is
+#                         never crowded/cropped by the divider + Apply Project Settings box
+#                         beneath it (bigger card margins/spacing + an explicit gap below the
+#                         Browse row). Verified by rendering the real card in Nuke (Qt5).
 #   1.1.21      - CP079 - Pre-stable audit polish (code-reviewer + verifier pass): UI-kit init
 #                         failure now logs to the Nuke console instead of failing silently;
 #                         _space_free() hardened (checks GetShortPathNameW return length, adds a
@@ -453,7 +457,7 @@ STATUS_ERR   = "#803838"
 STATUS_IDLE  = "#383838"
 STATUS_WARN  = "#5a4a10"
 
-VERSION   = "1.1.21"
+VERSION   = "1.1.22"
 TOOL_NAME = "TurnTable Comp Setup"
 
 # Comp template is resolved at import time relative to the Working Folder
@@ -2523,8 +2527,10 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         w = QtWidgets.QWidget()
         w.setStyleSheet(f"background:{self.BODY_BG};")
         vl = QtWidgets.QVBoxLayout(w)
-        vl.setContentsMargins(14, 12, 14, 14)
-        vl.setSpacing(8)
+        # Generous breathing room so the Browse button row is never crowded by the
+        # divider / Apply-Settings box beneath it (CP080 — Render Location card room).
+        vl.setContentsMargins(16, 14, 16, 18)
+        vl.setSpacing(11)
 
         # ── Step 1 — Browse the render location ───────────────────────────
         row1, self._fld_browse_badge, self._fld_browse_confirm = self._mk_step_header(
@@ -2543,7 +2549,9 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
 
         self.f_render_folder = self._path_row(vl, "Render Location", folder=True, guided=True)
 
+        vl.addSpacing(10)            # clear gap below the Browse button (no crop into the box below)
         vl.addWidget(self._divider())
+        vl.addSpacing(4)
 
         # ── Project settings inset box ────────────────────────────────────
         settings_box = QtWidgets.QFrame()
