@@ -1,7 +1,7 @@
 # ==============================================================================
 # Tool Name:   PXLtools TurnTable Comp Setup
-# Version:     1.1.22
-# Checkpoint:  CP080
+# Version:     1.1.23
+# Checkpoint:  CP081
 # Author:      PXLsuite / BlackMamba3D
 # Description: Live control panel for the TurnTable comp. Drives comp nodes
 #              directly — no TT_Settings relay, no Apply button.
@@ -9,6 +9,11 @@
 # Platform:    Nuke 15 (Python 3) | PySide2
 #
 # Changelog:
+#   1.1.23      - CP081 - Render Location: widened the space between the Browse button and the
+#                         card's right edge (card right margin 16->26) so the button is never
+#                         tight against / cropped by the card border. Verified by rendering the
+#                         REAL nested dialog in Nuke (Qt5) and measuring the button geometry +
+#                         looking at the card grab (not an isolated widget this time).
 #   1.1.22      - CP080 - Render Location card: more vertical room so the Browse button is
 #                         never crowded/cropped by the divider + Apply Project Settings box
 #                         beneath it (bigger card margins/spacing + an explicit gap below the
@@ -457,7 +462,7 @@ STATUS_ERR   = "#803838"
 STATUS_IDLE  = "#383838"
 STATUS_WARN  = "#5a4a10"
 
-VERSION   = "1.1.22"
+VERSION   = "1.1.23"
 TOOL_NAME = "TurnTable Comp Setup"
 
 # Comp template is resolved at import time relative to the Working Folder
@@ -2527,9 +2532,10 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         w = QtWidgets.QWidget()
         w.setStyleSheet(f"background:{self.BODY_BG};")
         vl = QtWidgets.QVBoxLayout(w)
-        # Generous breathing room so the Browse button row is never crowded by the
-        # divider / Apply-Settings box beneath it (CP080 — Render Location card room).
-        vl.setContentsMargins(16, 14, 16, 18)
+        # Clear space between the Browse button and the card edges (right margin widened) so the
+        # button is never tight against / cropped by the card border (CP081). NOT the card itself
+        # — just the breathing space around the content.
+        vl.setContentsMargins(16, 14, 26, 18)
         vl.setSpacing(11)
 
         # ── Step 1 — Browse the render location ───────────────────────────
