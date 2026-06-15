@@ -1,7 +1,7 @@
 # ==============================================================================
 # Tool Name:   PXLtools TurnTable Comp Setup
-# Version:     1.1.23
-# Checkpoint:  CP081
+# Version:     1.1.24
+# Checkpoint:  CP082
 # Author:      PXLsuite / BlackMamba3D
 # Description: Live control panel for the TurnTable comp. Drives comp nodes
 #              directly — no TT_Settings relay, no Apply button.
@@ -9,6 +9,19 @@
 # Platform:    Nuke 15 (Python 3) | PySide2
 #
 # Changelog:
+#   1.1.24      - CP082 - Three fixes, each render-verified in real Nuke (Qt5):
+#                         (1) Browse button "sat low + bottom cropped + not centered to the
+#                         field" — root cause was setFixedSize(92,32) vs the button QSS
+#                         min-height:32 + 1px border (a 34px box) clipping at 32. Fixed: inline
+#                         path field + Browse button share one height (_INLINE_H=30, QSS
+#                         min-height lowered to 28 so the box fits) and are vertically centred.
+#                         Verified: button rect fully inside its wrap, centred, on every path row.
+#                         (2) Step-number badges showed an etched drop-shadow on the digit:
+#                         QSS-styled QLabel text goes through Nuke's QStyleSheetStyle and keeps
+#                         the host emboss (the _FlatTextStyle proxy does NOT reach it). Replaced
+#                         the badge with a hand-painted _FlatBadge (QPainter) -> guaranteed flat
+#                         number. (3) PRELIMINARY steps re-numbered: 1 = ACES, 2 = BROWSE WORKING
+#                         FOLDER (Browse button orange/active), 3 = SET WORKING FOLDER.
 #   1.1.23      - CP081 - Render Location: widened the space between the Browse button and the
 #                         card's right edge (card right margin 16->26) so the button is never
 #                         tight against / cropped by the card border. Verified by rendering the
@@ -462,7 +475,7 @@ STATUS_ERR   = "#803838"
 STATUS_IDLE  = "#383838"
 STATUS_WARN  = "#5a4a10"
 
-VERSION   = "1.1.23"
+VERSION   = "1.1.24"
 TOOL_NAME = "TurnTable Comp Setup"
 
 # Comp template is resolved at import time relative to the Working Folder
@@ -1430,6 +1443,45 @@ class _FlatTextStyle(QtWidgets.QProxyStyle):
         painter.restore()
 
 
+class _FlatBadge(QtWidgets.QWidget):
+    """Numbered step badge, painted by hand (rounded square + centered number).
+
+    A QSS-styled QLabel routes its text through Nuke's QStyleSheetStyle, which redraws the
+    glyph with the host style's etched/drop-shadow emboss — the _FlatTextStyle proxy does NOT
+    reliably reach it (verified by render). Painting the number directly with QPainter is the
+    only way to guarantee a FLAT number with no shadow. Colours per state mirror _STEP_BADGE."""
+    _STATES = {
+        "locked": ("#363636", "#6A6A6A", "#2c2c2c"),
+        "active": ("#E8820C", "#241606", "#C96E08"),
+        "done":   ("#24331f", "#5BBF6A", "#3a5a3a"),
+    }
+
+    def __init__(self, text, parent=None):
+        super().__init__(parent)
+        self._text = str(text)
+        self.setFixedSize(22, 22)
+        self.set_state("locked")
+
+    def set_state(self, state):
+        self._bg, self._fg, self._bd = self._STATES.get(state, self._STATES["locked"])
+        self.update()
+
+    def paintEvent(self, _e):
+        p = QtGui.QPainter(self)
+        p.setRenderHint(QtGui.QPainter.Antialiasing, True)
+        r = QtCore.QRectF(0.5, 0.5, self.width() - 1.0, self.height() - 1.0)
+        p.setPen(QtGui.QPen(QtGui.QColor(self._bd), 1))
+        p.setBrush(QtGui.QColor(self._bg))
+        p.drawRoundedRect(r, 6, 6)
+        f = self.font()
+        f.setBold(True)
+        f.setPixelSize(12)
+        p.setFont(f)
+        p.setPen(QtGui.QColor(self._fg))
+        p.drawText(self.rect(), QtCore.Qt.AlignCenter, self._text)
+        p.end()
+
+
 class TurnTableCompSetupDialog(QtWidgets.QDialog):
 
     BODY_BG = "#333333"
@@ -1445,7 +1497,7 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
     _BTN2 = (
         "QPushButton{background:#4a4a4a;color:#E6E6E6;border:1px solid #262626;"
         "border-radius:5px;font-size:12px;font-weight:bold;letter-spacing:0.6px;"
-        "padding:0 14px;min-height:32px;min-width:84px;}"
+        "padding:0 14px;min-height:28px;min-width:84px;}"
         "QPushButton:hover{background:#555555;color:#ffffff;}"
         "QPushButton:pressed{background:#414141;}"
         "QPushButton:disabled{background:#404040;color:#7A7A7A;border:1px solid #262626;}"
@@ -1513,19 +1565,25 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
     _STEP_BTN = {
         "locked": "QPushButton{background:#383838;color:#6A6A6A;border:1px solid #2c2c2c;"
                   "border-radius:5px;font-size:12px;font-weight:bold;letter-spacing:0.6px;"
-                  "padding:0 14px;min-height:32px;}",
+                  "padding:0 14px;min-height:28px;}",
         "active": "QPushButton{background:#4a4a4a;color:#ffffff;border:1px solid #E8820C;"
                   "border-radius:5px;font-size:12px;font-weight:bold;letter-spacing:0.6px;"
-                  "padding:0 14px;min-height:32px;}"
+                  "padding:0 14px;min-height:28px;}"
                   "QPushButton:hover{background:#555555;border:1px solid #FF9A2E;}",
         "done":   "QPushButton{background:#333a33;color:#8FB890;border:1px solid #3a5a3a;"
                   "border-radius:5px;font-size:12px;font-weight:bold;letter-spacing:0.6px;"
-                  "padding:0 14px;min-height:32px;}"
+                  "padding:0 14px;min-height:28px;}"
                   "QPushButton:hover{background:#3a443a;color:#A8CBA8;}",
     }
     _STEP_TITLE   = ("QLabel{color:#D6D6D6;font-size:11px;font-weight:bold;"
                      "letter-spacing:0.5px;background:transparent;}")
     _STEP_CONFIRM = "QLabel{color:#5BBF6A;font-size:11px;font-weight:bold;background:transparent;}"
+
+    # Shared height for inline path field + its Browse-style button. The button QSS box is
+    # min-height(28) + 1px border top/bottom = 30, so a fixed 30px button is NOT clipped; the
+    # field is pinned to the same 30px so the two are equal height and vertically centered
+    # (fixes the "Browse button sits low / bottom cropped / not centered to the field" bug).
+    _INLINE_H = 30
 
     def __init__(self, parent=None):
         super().__init__(parent or _nuke_main_window())
@@ -1952,7 +2010,7 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         lbl = QtWidgets.QLabel(label_text)
         lbl.setFixedWidth(lw)
         lbl.setStyleSheet(self._LBL)
-        hl.addWidget(lbl)
+        hl.addWidget(lbl, 0, QtCore.Qt.AlignVCenter)
         hl.addWidget(widget, 1)
         return w
 
@@ -2068,11 +2126,9 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
 
     # ── Guided-step factories (parity with Maya) ──────────────────────────────
     def _mk_step_badge(self, text):
-        b = QtWidgets.QLabel(str(text))
-        b.setFixedSize(22, 22)
-        b.setAlignment(QtCore.Qt.AlignCenter)
-        b.setStyleSheet(self._STEP_BADGE["locked"])
-        return b
+        # Hand-painted badge (see _FlatBadge): the number is drawn flat with QPainter so it
+        # never picks up Nuke's etched/drop-shadow emboss that QSS-styled QLabels show.
+        return _FlatBadge(text)
 
     def _mk_step_confirm(self):
         c = QtWidgets.QLabel("")
@@ -2095,7 +2151,11 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         return row, badge, confirm
 
     def _set_badge(self, badge, state):
-        if badge:
+        if badge is None:
+            return
+        if hasattr(badge, "set_state"):
+            badge.set_state(state)          # _FlatBadge (flat-painted number)
+        else:
             badge.setStyleSheet(self._STEP_BADGE[state])
 
     def _set_step_btn(self, btn, state, gate_enable=True):
@@ -2139,8 +2199,9 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
     def _path_row(self, parent_layout, label, folder=False, file_filter="All (*)",
                   guided=False):
         ed  = self._field()
+        ed.setFixedHeight(self._INLINE_H)            # match button height -> centered, no crop
         btn = self._btn("Browse…", False)
-        btn.setFixedSize(92, 32)   # standard inline-action button size
+        btn.setFixedSize(92, self._INLINE_H)         # 30px box fits the QSS border -> not cropped
         if guided:
             # Guided-step colours like Maya: orange/active until a path is chosen,
             # then pale-green/done once the field holds a value.
@@ -2155,8 +2216,8 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         wl = QtWidgets.QHBoxLayout(wrap)
         wl.setContentsMargins(0, 0, 0, 0)
         wl.setSpacing(6)
-        wl.addWidget(ed, 1)
-        wl.addWidget(btn)
+        wl.addWidget(ed, 1, QtCore.Qt.AlignVCenter)
+        wl.addWidget(btn, 0, QtCore.Qt.AlignVCenter)
         parent_layout.addWidget(self._row(label, wrap))
         if folder:
             btn.clicked.connect(lambda _=False, e=ed: self._browse_folder(e))
@@ -2409,11 +2470,11 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
 
         vl.addWidget(self._divider())
 
-        # ── Step 2 — NUKE WORKING FOLDER ──────────────────────────────────
-        row2, self._prelim_folder_badge, self._prelim_folder_confirm = self._mk_step_header(
-            "2", "SET NUKE WORKING FOLDER")
+        # ── Step 2 — BROWSE THE WORKING FOLDER ────────────────────────────
+        row2, self._prelim_browse_badge, self._prelim_browse_confirm = self._mk_step_header(
+            "2", "BROWSE WORKING FOLDER")
         vl.addLayout(row2)
-        self._set_badge(self._prelim_folder_badge, "active")
+        self._set_badge(self._prelim_browse_badge, "active")
 
         folder_hint = QtWidgets.QLabel(
             "The project directory controls where Nuke resolves relative paths. "
@@ -2425,7 +2486,7 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         folder_hint.setWordWrap(True)
         vl.addWidget(folder_hint)
 
-        # Browse row: editable field + Browse button
+        # Browse row: editable field + Browse button (orange/active until a path is chosen)
         browse_row = QtWidgets.QWidget()
         browse_row.setStyleSheet(f"background:{self.BODY_BG};")
         brl = QtWidgets.QHBoxLayout(browse_row)
@@ -2433,11 +2494,21 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         brl.setSpacing(6)
         self.f_proj_dir = self._field(placeholder="Path to TurnTable_ROOT/_COMP…")
         self.f_proj_dir.setText("")
+        self.f_proj_dir.setFixedHeight(self._INLINE_H)
         btn_browse_proj = self._btn("Browse…", False)
-        btn_browse_proj.setFixedSize(92, 32)   # standard inline-action button size
-        brl.addWidget(self.f_proj_dir, 1)
-        brl.addWidget(btn_browse_proj)
+        btn_browse_proj.setFixedSize(92, self._INLINE_H)
+        btn_browse_proj.setStyleSheet(self._STEP_BTN["active"])   # orange outline (guided)
+        brl.addWidget(self.f_proj_dir, 1, QtCore.Qt.AlignVCenter)
+        brl.addWidget(btn_browse_proj, 0, QtCore.Qt.AlignVCenter)
         vl.addWidget(browse_row)
+
+        vl.addWidget(self._divider())
+
+        # ── Step 3 — SET THE WORKING FOLDER ───────────────────────────────
+        row3, self._prelim_setwf_badge, self._prelim_setwf_confirm = self._mk_step_header(
+            "3", "SET WORKING FOLDER")
+        vl.addLayout(row3)
+        self._set_badge(self._prelim_setwf_badge, "active")
 
         # Action row: Set + Refresh
         action_row = QtWidgets.QWidget()
@@ -2455,6 +2526,15 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
 
         self.lbl_proj_status = self._stat()
         vl.addWidget(self.lbl_proj_status)
+
+        def _upd_browse_state():
+            # Step 2 (Browse): orange/active until a path is in the field, then green/done.
+            has = bool(self.f_proj_dir.text().strip())
+            self._set_badge(self._prelim_browse_badge, "done" if has else "active")
+            self._set_confirm(self._prelim_browse_confirm, has)
+            btn_browse_proj.setStyleSheet(self._STEP_BTN["done"] if has
+                                          else self._STEP_BTN["active"])
+        self.f_proj_dir.textChanged.connect(lambda _=None: _upd_browse_state())
 
         def _browse_proj():
             start = self.f_proj_dir.text().strip() or "D:/"
@@ -2488,18 +2568,19 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
                 self.f_proj_dir.setText(cur.replace("\\", "/"))
             cur_norm = cur.replace("\\", "/")
             ok = "_COMP" in cur_norm
+            _upd_browse_state()   # step 2 reflects whether a path is present
             if ok:
                 self._set_status(self.lbl_proj_status,
                                  f"Working folder: {cur_norm}", "ok")
-                self._set_badge(self._prelim_folder_badge, "done")
-                self._set_confirm(self._prelim_folder_confirm, True)
+                self._set_badge(self._prelim_setwf_badge, "done")
+                self._set_confirm(self._prelim_setwf_confirm, True)
                 btn_set_proj.setStyleSheet(self._STEP_BTN["done"])   # pale-green done (Maya parity)
             else:
                 self._set_status(self.lbl_proj_status,
                                  "Working folder is NOT set to _COMP. Browse and click Set.",
                                  "warn")
-                self._set_badge(self._prelim_folder_badge, "active")
-                self._set_confirm(self._prelim_folder_confirm, False)
+                self._set_badge(self._prelim_setwf_badge, "active")
+                self._set_confirm(self._prelim_setwf_confirm, False)
                 btn_set_proj.setStyleSheet(self._STEP_BTN["active"])
 
         btn_browse_proj.clicked.connect(_browse_proj)
@@ -2708,7 +2789,7 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         self.combo_asset_type = self._code_combo(ASSET_TYPE_PAIRS)
         self.combo_asset_type.setFixedWidth(150)
         self.btn_af = self._btn("Auto-fill", False)
-        self.btn_af.setFixedSize(92, 32)   # standard inline-action button size
+        self.btn_af.setFixedSize(92, self._INLINE_H)   # standard inline-action button size
         twl.addWidget(self.combo_asset_type)
         twl.addStretch()
         twl.addWidget(self.btn_af)
@@ -3455,7 +3536,7 @@ class TurnTableCompSetupDialog(QtWidgets.QDialog):
         nwl.setSpacing(6)
         self.f_write_name = self._field(placeholder="e.g. Scion_HDRI01_Beauty")
         self.btn_write_name_auto = self._btn("Auto", primary=False)
-        self.btn_write_name_auto.setFixedSize(92, 32)   # matches Browse… (paired size)
+        self.btn_write_name_auto.setFixedSize(92, self._INLINE_H)   # matches Browse… (paired size)
         nwl.addWidget(self.f_write_name, 1)
         nwl.addWidget(self.btn_write_name_auto)
         vl.addWidget(self._row("Name", name_wrap))
