@@ -172,7 +172,14 @@ def setup_shelf():
         command=(
             "import maya.cmds as _c\n"
             "def _pxl_rebuild():\n"
-            "    import importlib, PXLtools_Setup_Shelf as _s; importlib.reload(_s)\n"
+            "    import sys, importlib\n"
+            "    # Purge cached PXL + shared-kit modules so tools reload the LATEST\n"
+            "    # code from disk on next launch (not the stale cached version).\n"
+            "    _pref = ('PXLtools_', 'PXLmentor_', 'pxl_ui.')\n"
+            "    for _m in list(sys.modules):\n"
+            "        if _m != 'PXLtools_Setup_Shelf' and (_m == 'pxl_ui' or _m.startswith(_pref)):\n"
+            "            del sys.modules[_m]\n"
+            "    import PXLtools_Setup_Shelf as _s; importlib.reload(_s)\n"
             "_c.evalDeferred(_pxl_rebuild, lowestPriority=True)"
         ),
         sourceType="python",
