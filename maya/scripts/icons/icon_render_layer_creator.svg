@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 256 256">
+  <defs>
+    <style>
+      .st2 { stroke: #3a3a40; stroke-width: 2px; fill: none; }
+      .st6 { fill: url(#linear-gradient); }
+      /* grey slab faces */
+      .gt { fill: #cdd2d9; }   /* top   */
+      .gl { fill: #9aa0aa; }   /* left  */
+      .gr { fill: #7c828c; }   /* right */
+      /* orange slab faces (active layer) */
+      .ot { fill: #f4951c; }
+      .ol { fill: #e8820c; }
+      .or { fill: #c46a08; }
+    </style>
+    <linearGradient id="linear-gradient" x1="-827.3" y1="667.4" x2="-827.3" y2="666.4" gradientTransform="translate(211905 170853) scale(256 -256)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2c2c30"/>
+      <stop offset="1" stop-color="#141416"/>
+    </linearGradient>
+  </defs>
+  <rect class="st6" width="256" height="256" rx="57.6" ry="57.6"/>
+  <rect class="st2" x="2" y="2" width="252" height="252" rx="55.6" ry="55.6"/>
+  <!-- OBJECT START -->
+  <!-- Stacked isometric render layers; drawn back-to-front. Top layer = orange (active). -->
+  <!-- Bottom layer (cy=170) -->
+  <g>
+    <polygon class="gl" points="68 170 128 196 128 202 68 176"/>
+    <polygon class="gr" points="128 196 188 170 188 176 128 202"/>
+    <polygon class="gt" points="128 144 188 170 128 196 68 170"/>
+  </g>
+  <!-- Middle layer (cy=130) -->
+  <g>
+    <polygon class="gl" points="68 130 128 156 128 162 68 136"/>
+    <polygon class="gr" points="128 156 188 130 188 136 128 162"/>
+    <polygon class="gt" points="128 104 188 130 128 156 68 130"/>
+  </g>
+  <!-- Top layer (cy=90) = ACTIVE, orange -->
+  <g>
+    <polygon class="ol" points="68 90 128 116 128 122 68 96"/>
+    <polygon class="or" points="128 116 188 90 188 96 128 122"/>
+    <polygon class="ot" points="128 64 188 90 128 116 68 90"/>
+  </g>
+  <!-- OBJECT END -->
+</svg>

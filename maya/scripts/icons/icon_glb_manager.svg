@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 256 256">
+  <defs>
+    <style>
+      .st1 { fill: #e8820c; }
+      .st2 { stroke: #3a3a40; stroke-width: 2px; }
+      .st2, .st4 { fill: none; }
+      .st6 { fill: url(#linear-gradient); }
+      .st4 { stroke: #e8820c; stroke-width: 15px; }
+    </style>
+    <linearGradient id="linear-gradient" x1="-827.3" y1="667.4" x2="-827.3" y2="666.4" gradientTransform="translate(211905 170853) scale(256 -256)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2c2c30"/>
+      <stop offset="1" stop-color="#141416"/>
+    </linearGradient>
+    <linearGradient id="txt-grad" x1="128" y1="64" x2="128" y2="150" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#eef1f6"/>
+      <stop offset="1" stop-color="#969ca6"/>
+    </linearGradient>
+  </defs>
+  <rect class="st6" width="256" height="256" rx="57.6" ry="57.6"/>
+  <rect class="st2" x="2" y="2" width="252" height="252" rx="55.6" ry="55.6"/>
+  <!-- OBJECT START -->
+  <!-- "GLB" letters (greyscale, top-lit gradient) -->
+  <text x="128" y="140" text-anchor="middle"
+        font-family="Arial Black, Arial, sans-serif" font-weight="900"
+        font-size="76" letter-spacing="-3" fill="url(#txt-grad)">GLB</text>
+  <!-- Double-sided in/out arrow (orange), centered below the letters -->
+  <g id="arrow">
+    <line class="st4" x1="80" y1="180" x2="176" y2="180" stroke-linecap="round"/>
+    <polygon class="st1" points="62 180 88 165 88 195"/>
+    <polygon class="st1" points="194 180 168 165 168 195"/>
+  </g>
+  <!-- OBJECT END -->
+</svg>

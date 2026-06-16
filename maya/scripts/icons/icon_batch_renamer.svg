@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 256 256">
+  <defs>
+    <style>
+      .st2 { stroke: #3a3a40; stroke-width: 2px; fill: none; }
+      .st6 { fill: url(#linear-gradient); }
+    </style>
+    <linearGradient id="linear-gradient" x1="-827.3" y1="667.4" x2="-827.3" y2="666.4" gradientTransform="translate(211905 170853) scale(256 -256)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2c2c30"/>
+      <stop offset="1" stop-color="#141416"/>
+    </linearGradient>
+    <linearGradient id="card-grad" x1="128" y1="100" x2="128" y2="164" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#e6eaf0"/>
+      <stop offset="1" stop-color="#969ca6"/>
+    </linearGradient>
+  </defs>
+  <rect class="st6" width="256" height="256" rx="57.6" ry="57.6"/>
+  <rect class="st2" x="2" y="2" width="252" height="252" rx="55.6" ry="55.6"/>
+  <!-- OBJECT START -->
+  <!-- Batch: a faint second tag offset behind -->
+  <rect x="54" y="84" width="118" height="54" rx="11" fill="#6f757e"/>
+  <!-- Front name tag -->
+  <rect x="62" y="102" width="122" height="60" rx="13" fill="url(#card-grad)" stroke="#ecf0f5" stroke-width="1.2"/>
+  <!-- Name lines (the text being renamed) -->
+  <rect x="80" y="120" width="66" height="9" rx="4.5" fill="#5f656f"/>
+  <rect x="80" y="140" width="44" height="9" rx="4.5" fill="#5f656f"/>
+  <!-- Orange pencil renaming the tag (the verb) -->
+  <g transform="translate(146,134) rotate(-50)">
+    <polygon points="0,0 17,-7 17,7" fill="#3a3a40"/>           <!-- graphite lead -->
+    <polygon points="14,-7 27,-10 27,10 14,7" fill="#f4951c"/>  <!-- sharpened wood -->
+    <rect x="27" y="-10.5" width="42" height="21" fill="#e8820c"/>  <!-- body -->
+    <rect x="69" y="-10.5" width="8" height="21" fill="#b8bdc7"/>   <!-- ferrule -->
+    <rect x="77" y="-10.5" width="11" height="21" rx="4" fill="#9aa0aa"/> <!-- eraser -->
+  </g>
+  <!-- OBJECT END -->
+</svg>

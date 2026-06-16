@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 256 256">
+  <!-- Generator: Adobe Illustrator 29.8.6, SVG Export Plug-In . SVG Version: 2.1.1 Build 1)  -->
+  <defs>
+    <style>
+      .st0 {
+        fill: url(#radial-gradient2);
+        filter: url(#drop-shadow-1);
+      }
+
+      .st1 {
+        fill: none;
+        stroke: #3a3a40;
+        stroke-width: 2px;
+      }
+
+      .st2 {
+        fill: url(#radial-gradient);
+      }
+
+      .st3 {
+        fill: url(#radial-gradient1);
+      }
+
+      .st4 {
+        fill: url(#linear-gradient);
+      }
+    </style>
+    <linearGradient id="linear-gradient" x1="-1003.56" y1="-141.36" x2="-1003.56" y2="-140.36" gradientTransform="translate(257040 36186) scale(256)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2c2c30"/>
+      <stop offset="1" stop-color="#141416"/>
+    </linearGradient>
+    <radialGradient id="radial-gradient" cx="-175.03" cy="514.76" fx="-175.03" fy="514.76" r=".55" gradientTransform="translate(21131 14095.5) scale(120 -27)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#000" stop-opacity=".82"/>
+      <stop offset=".45" stop-color="#000" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="radial-gradient1" cx="-175.48" cy="522.93" fx="-175.48" fy="522.93" r=".8" gradientTransform="translate(26073 77481) scale(148 -148)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ecf0f5"/>
+      <stop offset=".1" stop-color="#d6dbe2"/>
+      <stop offset=".28" stop-color="#b8bdc7"/>
+      <stop offset=".48" stop-color="#969ca6"/>
+      <stop offset=".66" stop-color="#787d87"/>
+      <stop offset=".82" stop-color="#686d77"/>
+      <stop offset=".92" stop-color="#5a5f69"/>
+      <stop offset="1" stop-color="#4e5259"/>
+    </radialGradient>
+    <radialGradient id="radial-gradient2" cx="108.57" cy="83.67" fx="108.57" fy="83.67" r="103.08" gradientTransform="translate(245.95 91.6) rotate(145.39) scale(1 1.01)" gradientUnits="userSpaceOnUse">
+      <stop offset=".24" stop-color="#f8a91f"/>
+      <stop offset="1" stop-color="#a85a06"/>
+    </radialGradient>
+    <filter id="drop-shadow-1" x="40" y="33" width="180" height="179" filterUnits="userSpaceOnUse">
+      <feOffset dx="2" dy="2"/>
+      <feGaussianBlur result="blur" stdDeviation="5"/>
+      <feFlood flood-color="#000" flood-opacity=".15"/>
+      <feComposite in2="blur" operator="in"/>
+      <feComposite in="SourceGraphic"/>
+    </filter>
+  </defs>
+  <rect id="Back" class="st4" width="256" height="256" rx="57.6" ry="57.6"/>
+  <rect id="Contour" class="st1" x="2" y="2" width="252" height="252" rx="55.6" ry="55.6"/>
+  <ellipse id="Shadow" class="st2" cx="128" cy="201" rx="60" ry="13.5"/>
+  <circle id="Sphere" class="st3" cx="128" cy="122" r="74"/>
+  <path id="Paint" class="st0" d="M179.39,133.82c-3.68,4.28-11.13,6.95-12.56,13.97-1.92,9.46,11.57,35.24-4,36.6-15.65,1.36-4.78-29.41-4.8-37.08-.01-5.64-1.53-18.49-8.63-18.53-11.21-.08-6.38,14.91-15.26,16.18-4.49.64-4.9-9.52-9.37-10.17-14.34-2.1-14.5,7.01-14.08,15.48.72,14.41,13.37,29.07,6.38,39.89-3.31,5.12-10.91,5.93-14.81,1.38-10.19-11.9,4.84-18.43-2.72-38.59-1.3-3.48-2.65-5.77-6.3-7.21-17.29,4.8-3.88,11.69-7.51,23.34-2.06,6.6-8.58,6.76-12.18,1.21-5.77-8.9,2.73-10.84.31-21.48-1.12-4.92,1.32-8.7-.66-14.47-2.29-6.68-12.33-5.99-12.22-12.33.17-9.83-14.44-.54-2.44-28.44,33.78-78.56,152.19-52.74,144.04,38.1-1.48,16.53-11.71-24.16-16.54-14.89-2.82,5.42-1.46,11.01-6.66,17.05Z"/>
+  <g id="Glint">
+    <image width="90" height="87" transform="translate(57 34)" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFoAAABXCAYAAACENlLcAAAACXBIWXMAAAsSAAALEgHS3X78AAACsUlEQVR4nO3Z3WscVRgH4GfaxKRa21Cw8QMUiopW9ELQi4J/u9deqFeiqCBKP7TxoxFr0myT48U74250mzTBtEf4PTBMGGbC4bfvvHvOWSIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiTmB42gM4TmttGuNRY20wDEM7+xGdTtdBt9bOYRVr43nZeBtmeICHOOgx8C6DHqv4HC7gBbyCy1hxeMxNhfs7fsQvuI/ZMAwHT3LMx+ku6IUqfh4v4T28j5exvuSRB/gJX47HNyrwvZ4qe+VpD2DRGPIFXMU1vIMP8a6q7NUlj82wjTfUhwG7qtL3z3jIj62boMd2sapC/gA3VNDXxmvrqp3861FsqDeg4fZ43G+tddOvuwlahXhRBXsDH+FVFeCq5SFP1nFlfPZtfKHayd4ZjvdEugh6rOYVFdabuK5C3sB5x3+XTG/DZVX9l8y/OLuo6KOq5Elbw4t4S4V80eOF/L/QS9BTRV7C5nh+1Lx5mcVp3t3x/FAn1Uw/QTMP+xknC5kKdJrmfavC7qY/01fQk9O0igPsYEvNOO6pRUsq+ggnDWcK+S6+H8+7p/g/Z6qnoBf3LGYqwOPu31dL7pv4DJ+Of3cXdBfTO/OQt3FLVeVzeFYVw2A+VWsL9/+BOyrgj1XYWzprG/QTNFXJt1RoV8Zrm2pJvqamevvjfbuqD/+g9jc+USHfxE5vG0p0EvQwDK21NlPV+Pl4+Te8pvY4NlV1/6lmFj+rUL/C1/hOvQU7wzB0s7+xqKvFQGvtvMNbo1fH8+tq1betpm+31YdyB7+qFtLd1uiiroLm0Dbp+nhsqOCnit5SbWPXfJeum82jR+kuaP7e+5iOaREz9eg99UXY0HoPeNJl0Iv+8Zth978NRkRERERERERERERERERERERERERERET8J/4Cgtu/dG3QLQEAAAAASUVORK5CYII="/>
+  </g>
+</svg>
