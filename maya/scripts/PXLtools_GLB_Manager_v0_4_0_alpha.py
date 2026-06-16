@@ -1892,7 +1892,7 @@ class GLBManager(object):
 
         # ── STEP 3 — IMPORT (RUN section) ───────────────────────────────────
         self._imp_run_frame, run_lay, _run_hbox = _make_section_frame(
-            "IMPORT", icon_name="utilities", accent="#E8820C", parent=inner,
+            "IMPORT", icon_name="download", accent="#E8820C", parent=inner,
         )
 
         row4, self._imp_step4_badge, self._imp_step4_confirm = \
