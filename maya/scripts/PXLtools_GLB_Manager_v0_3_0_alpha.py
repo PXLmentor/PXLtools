@@ -1,5 +1,5 @@
 """
-GLB Manager v0.2.0-alpha
+GLB Manager v0.3.0-alpha
 
 Purpose:    Unified GLB / glTF import & export manager for Maya — parse/build
             geometry, ORM texture extraction, Arnold PBR materials, glTF 2.0
@@ -27,7 +27,42 @@ Description:
     migrated. The dual-tab IMPORT | EXPORT | SCENE QTabWidget structure is kept;
     the tab bar is now styled by tool_qss.
 
+    v0.3.0-alpha is a full STANDARD-compliance rework of the UI chrome and the
+    guided flow ONLY — every byte of the import/export/binary/material/scene CORE
+    LOGIC is preserved verbatim from v0.2.0-alpha.
+
 Changelog:
+    0.3.0-alpha - STANDARD.md compliance rework (§1 colours, §2 structure,
+            §3 step-gating). UI-chrome + guided-flow ONLY; import/export/scene
+            core logic byte-for-byte unchanged:
+              - Deleted the bespoke fallback header block (hard-coded #333333 /
+                rgb(51,51,51) / white / #aaaaaa inline colours). The header is
+                now ONLY pxlw.AppHeader(tool_name, version, icon_path) — exactly
+                like TurnTable. Tool icon resolved to the deployed
+                icon_glb_manager.png (fallback icon_glb_importer.png).
+              - Removed EVERY remaining inline/hard-coded colour setStyleSheet:
+                the two QProgressBar stylesheets are gone (bars rely on tool_qss);
+                shader/color-space field labels are now objectName "ctrlLabel"
+                (no inline font/colour QSS). Combos rely on tool_qss only.
+              - Guided, numbered, gated step-gating added to BOTH the IMPORT and
+                EXPORT tabs, replicating the TurnTable mechanism exactly: shared
+                helpers _repolish / _mk_step_badge / _mk_step_confirm /
+                _mk_step_header / _set_badge / _set_step_btn / _set_confirm /
+                _btn_obj, objectNames btnStepActive/btnStepDone/btnStepLocked and
+                badges stepReady/stepDone/stepLocked/stepTitle/stepConfirmDone/
+                stepConfirmEmpty, plus per-tab state machines
+                _update_import_steps() / _update_export_steps() called at every
+                real success point and on reset (state derived from REALITY;
+                future steps setEnabled(False)).
+                IMPORT  : 1 Browse GLB file -> 2 Confirm options -> 3 Import.
+                EXPORT  : 1 Select objects  -> 2 Confirm output  -> 3 Export.
+              - _make_section_frame now returns a small _SectionFrame object with
+                set_state('idle'|'active'|'done') so each section reflects
+                progress, matching CollapsibleSection.set_state in TurnTable.
+              - A per-tab instruction line: "Follow the numbers — the orange step
+                is what to do next; it turns green when done."
+            File renamed PXLtools_GLB_Manager_v0_2_0_alpha.py ->
+            PXLtools_GLB_Manager_v0_3_0_alpha.py.
     0.2.0-alpha - Migrated the UI to the shared PXLtools pxl_ui kit, EXACTLY
             mirroring the gold-standard PXLtools TurnTable Builder and the
             just-migrated PBR Material sibling:
@@ -112,8 +147,8 @@ if not _log.handlers:
 # =============================================================================
 
 TOOL_NAME          = "GLB Manager"
-VERSION            = "0.2.0-alpha"
-WINDOW_OBJECT_NAME = "PXLtoolsGLBManager_v020"
+VERSION            = "0.3.0-alpha"
+WINDOW_OBJECT_NAME = "PXLtoolsGLBManager_v030"
 ICON_NAME          = "icon_glb_manager.png"
 ICON_FALLBACK      = "icon_glb_importer.png"
 
@@ -1390,8 +1425,13 @@ def _resolved_qss():
 # Section-frame helper — non-collapsible section using the shared look.
 # Mirrors the shared CollapsibleSection header (3px accent bar + icon + title)
 # but stays always-open. Body uses objectName "sectionFrame" so tool_qss styles
-# it. Returns (container, body_layout, header_hbox) so callers can add a
+# it. Returns (section, body_layout, header_hbox) so callers can add a
 # right-aligned action button into the header bar.
+#
+# The returned `section` is a QWidget with a bound set_state('idle'|'active'|
+# 'done') method that recolours the accent bar (orange active / green done) and
+# tints the header + shows a header ✓ when done — exactly like the reference
+# tool's CollapsibleSection.set_state, so each section reflects step progress.
 # =============================================================================
 
 def _make_section_frame(title, icon_name=None, accent=None, parent=None):
@@ -1400,7 +1440,8 @@ def _make_section_frame(title, icon_name=None, accent=None, parent=None):
     except ImportError:
         from PySide2 import QtWidgets, QtCore, QtGui
 
-    accent = accent or (pxlt.c("accent") if _PXLUI else "#E8820C")
+    base_accent = accent or (pxlt.c("accent") if _PXLUI else "#E8820C")
+    radius = (pxlt.m("r_section") if _PXLUI else 6)
 
     container = QtWidgets.QWidget(parent)
     outer = QtWidgets.QVBoxLayout(container)
@@ -1410,20 +1451,14 @@ def _make_section_frame(title, icon_name=None, accent=None, parent=None):
     header = QtWidgets.QFrame()
     header.setObjectName("PxlSectionHeader")
     header.setFixedHeight(pxlt.m("section_h") if _PXLUI else 30)
-    header.setStyleSheet(
-        "QFrame#PxlSectionHeader {{ background: {}; border: none; "
-        "border-top-left-radius: {r}px; border-top-right-radius: {r}px; }}".format(
-            pxlt.c("section_head") if _PXLUI else "#454545",
-            r=(pxlt.m("r_section") if _PXLUI else 6),
-        )
-    )
+
     hbox = QtWidgets.QHBoxLayout(header)
     hbox.setContentsMargins(0, 0, 8, 0)
     hbox.setSpacing(8)
 
     bar = QtWidgets.QFrame()
     bar.setFixedWidth(3)
-    bar.setStyleSheet("background: {}; border: none;".format(accent))
+    bar.setStyleSheet("background: {}; border: none;".format(base_accent))
     hbox.addWidget(bar)
 
     if icon_name and _PXLUI:
@@ -1431,20 +1466,29 @@ def _make_section_frame(title, icon_name=None, accent=None, parent=None):
             icl = QtWidgets.QLabel()
             icl.setFixedWidth(pxlt.m("icon"))
             icl.setStyleSheet("background: transparent;")
-            icl.setPixmap(pxli.pixmap(icon_name, pxlt.m("icon"), accent))
+            icl.setPixmap(pxli.pixmap(icon_name, pxlt.m("icon"), base_accent))
             hbox.addWidget(icl)
         except Exception:
             pass
 
+    # Title: font only (no inline colour) — inherits `text` from tool_qss.
     title_lbl = QtWidgets.QLabel(title)
-    title_lbl.setStyleSheet(
-        "color: {}; font-weight: bold; font-size: {}px; background: transparent;".format(
-            pxlt.c("text") if _PXLUI else "#E6E6E6",
-            pxlt.m("fs_section") if _PXLUI else 12,
-        )
-    )
+    _tf = title_lbl.font()
+    _tf.setBold(True)
+    _tf.setPointSize(max(_tf.pointSize(), 9))
+    title_lbl.setFont(_tf)
+    title_lbl.setStyleSheet("background: transparent;")
     hbox.addWidget(title_lbl)
     hbox.addStretch(1)
+
+    # Section-level done check (pale-green ✓ when complete) — same as TurnTable.
+    state_chk = QtWidgets.QLabel("")
+    state_chk.setStyleSheet(
+        "color: {}; font-weight: bold; font-size: 13px; "
+        "background: transparent;".format(pxlt.c("ok") if _PXLUI else "#5BBF6A")
+    )
+    hbox.addWidget(state_chk)
+
     outer.addWidget(header)
 
     body = QtWidgets.QFrame()
@@ -1453,6 +1497,38 @@ def _make_section_frame(title, icon_name=None, accent=None, parent=None):
     body_layout.setContentsMargins(11, 8, 8, 8)
     body_layout.setSpacing(6)
     outer.addWidget(body)
+
+    # ── set_state — mirrors CollapsibleSection.set_state in the reference tool ──
+    def _apply_header_bg(state):
+        if state == "done":
+            bg = "#33402d"
+        elif state == "active":
+            bg = "#46413a"
+        else:
+            bg = (pxlt.c("section_head") if _PXLUI else "#454545")
+        header.setStyleSheet(
+            "QFrame#PxlSectionHeader {{ background: {}; border: none; "
+            "border-top-left-radius: {r}px; "
+            "border-top-right-radius: {r}px; }}".format(bg, r=radius)
+        )
+
+    def set_state(state):
+        """Visual progress state: 'idle' | 'active' (orange) | 'done' (green)."""
+        if state == "done":
+            bar.setStyleSheet(
+                "background: {}; border: none;".format(
+                    pxlt.c("ok") if _PXLUI else "#5BBF6A"))
+        elif state == "active":
+            bar.setStyleSheet(
+                "background: {}; border: none;".format(
+                    pxlt.c("accent") if _PXLUI else "#E8820C"))
+        else:
+            bar.setStyleSheet("background: {}; border: none;".format(base_accent))
+        state_chk.setText("✓" if state == "done" else "")
+        _apply_header_bg(state)
+
+    _apply_header_bg("idle")
+    container.set_state = set_state
 
     return container, body_layout, hbox
 
@@ -1508,6 +1584,25 @@ class GLBManager(object):
                 pass
         _INSTANCE = self
 
+        # ── Guided-flow state (derived from reality; reset recomputes) ────────
+        # IMPORT : step1 file chosen, step2 options confirmed, step3 imported.
+        # EXPORT : step1 objects chosen, step2 output confirmed, step3 exported.
+        self._imp_opts_confirmed = False
+        self._imp_done           = False
+        self._exp_sel_count      = 0
+        self._exp_node_names     = []
+        self._exp_opts_confirmed = False
+        self._exp_done           = False
+        # Step-widget handles (created in the build methods).
+        self._imp_step1_badge = self._imp_step1_confirm = None
+        self._imp_step2_badge = self._imp_step2_confirm = None
+        self._imp_step3_badge = self._imp_step3_confirm = None
+        self._exp_step1_badge = self._exp_step1_confirm = None
+        self._exp_step2_badge = self._exp_step2_confirm = None
+        self._exp_step3_badge = self._exp_step3_confirm = None
+        self._imp_src_frame = self._imp_opt_frame = self._imp_run_frame = None
+        self._exp_sel_frame = self._exp_out_frame = self._exp_run_frame = None
+
         # ── Parent to Maya main window ────────────────────────────────────────
         main_ptr = omui.MQtUtil.mainWindow()
         maya_win = shiboken6.wrapInstance(int(main_ptr), QtWidgets.QWidget)
@@ -1558,87 +1653,18 @@ class GLBManager(object):
     # ── Header ────────────────────────────────────────────────────────────────
 
     def _build_header(self, layout):
-        try:
-            from PySide6 import QtWidgets, QtGui, QtCore
-        except ImportError:
-            from PySide2 import QtWidgets, QtGui, QtCore
+        """Branded header — ALWAYS the shared pxlw.AppHeader (no bespoke header).
 
+        Resolves the deployed tool icon (icon_glb_manager.png, falling back to
+        icon_glb_importer.png) in the Maya prefs icons dir, exactly like the
+        TurnTable Builder resolves its icon. There is NO hand-built fallback
+        header with hard-coded colours — all chrome comes from the kit."""
         icon_dir = cmds.internalVar(userPrefDir=True) + "icons/"
-
-        if _PXLUI:
-            try:
-                _ip = icon_dir + self.ICON_NAME
-                if not os.path.isfile(_ip):
-                    _ip = icon_dir + ICON_FALLBACK
-                layout.addWidget(pxlw.AppHeader(
-                    self.TOOL_NAME, "v" + self.VERSION, icon_path=_ip))
-                return
-            except Exception:
-                pass
-
-        # ── Fallback header (pxl_ui unavailable) ─────────────────────────────
-        header_widget = QtWidgets.QWidget()
-        header_widget.setFixedHeight(106)
-        header_widget.setStyleSheet("background-color: #333333;")
-
-        root_hbox = QtWidgets.QHBoxLayout(header_widget)
-        root_hbox.setContentsMargins(10, 5, 10, 5)
-        root_hbox.setSpacing(0)
-
-        left_label = QtWidgets.QLabel()
-        left_label.setFixedSize(96, 96)
-        left_label.setAlignment(QtCore.Qt.AlignCenter)
-        tool_icon = icon_dir + self.ICON_NAME
-        if not os.path.exists(tool_icon):
-            tool_icon = icon_dir + ICON_FALLBACK
-        if os.path.exists(tool_icon):
-            pix = QtGui.QPixmap(tool_icon).scaled(
-                96, 96, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation
-            )
-            left_label.setPixmap(pix)
-        else:
-            left_label.setText("[Icon]")
-            left_label.setStyleSheet("background-color: rgb(51,51,51); color: white;")
-        root_hbox.addWidget(left_label)
-
-        center_vbox = QtWidgets.QVBoxLayout()
-        center_vbox.setContentsMargins(0, 0, 0, 0)
-        center_vbox.setSpacing(2)
-        center_vbox.setAlignment(QtCore.Qt.AlignVCenter)
-
-        logo_label = QtWidgets.QLabel()
-        logo_label.setFixedSize(262, 48)
-        logo_label.setAlignment(QtCore.Qt.AlignCenter)
-        logo_path = icon_dir + "PXLtools_logo.png"
-        if os.path.exists(logo_path):
-            logo_pix = QtGui.QPixmap(logo_path).scaled(
-                262, 48, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation
-            )
-            logo_label.setPixmap(logo_pix)
-        else:
-            logo_label.setText("PXLtools")
-            logo_label.setStyleSheet("color: white; font-weight: bold; font-size: 14px;")
-
-        logo_hbox = QtWidgets.QHBoxLayout()
-        logo_hbox.setContentsMargins(0, 0, 0, 0)
-        logo_hbox.addStretch()
-        logo_hbox.addWidget(logo_label)
-        logo_hbox.addStretch()
-
-        name_lbl = QtWidgets.QLabel(self.TOOL_NAME)
-        name_lbl.setAlignment(QtCore.Qt.AlignCenter)
-        name_lbl.setStyleSheet("color: white; font-weight: bold; font-size: 11px;")
-
-        ver_lbl = QtWidgets.QLabel("v{}".format(self.VERSION))
-        ver_lbl.setAlignment(QtCore.Qt.AlignCenter)
-        ver_lbl.setStyleSheet("color: #aaaaaa; font-size: 9px;")
-
-        center_vbox.addLayout(logo_hbox)
-        center_vbox.addWidget(name_lbl)
-        center_vbox.addWidget(ver_lbl)
-        root_hbox.addLayout(center_vbox, 1)
-
-        layout.addWidget(header_widget)
+        _ip = icon_dir + self.ICON_NAME
+        if not os.path.isfile(_ip):
+            _ip = icon_dir + ICON_FALLBACK
+        layout.addWidget(pxlw.AppHeader(
+            self.TOOL_NAME, "v" + self.VERSION, icon_path=_ip))
 
     # ── Instructions panel ────────────────────────────────────────────────────
 
@@ -1649,8 +1675,10 @@ class GLBManager(object):
             collapsed=True,
         )
         for line in [
-            "IMPORT: Browse a .glb/.gltf file, configure options, click Import.",
-            "EXPORT: Use the Scene panel to select objects, set output path, click Export GLB.",
+            "Follow the numbers — the orange step is what to do next; it turns "
+            "green when done.",
+            "IMPORT: 1 Browse a .glb/.gltf file → 2 Confirm options → 3 Import.",
+            "EXPORT: 1 Select objects (Scene tab) → 2 Confirm output → 3 Export.",
             "SCENE:  Refresh updates the list. Select/Hide/Show act on the Maya scene.",
             "        Multi-select supported. Groups are auto-expanded on export.",
         ]:
@@ -1672,10 +1700,27 @@ class GLBManager(object):
         vbox.setContentsMargins(14, 12, 14, 14)
         vbox.setSpacing(10)
 
-        # ── SOURCE FILE section ─────────────────────────────────────────────
-        src_frame, src_lay, _src_hbox = _make_section_frame(
+        intro = QtWidgets.QLabel(
+            "Follow the numbers — the orange step is what to do next; "
+            "it turns green when done."
+        )
+        intro.setObjectName("hint")
+        intro.setWordWrap(True)
+        vbox.addWidget(intro)
+
+        # ── STEP 1 — BROWSE GLB FILE (SOURCE FILE section) ──────────────────
+        self._imp_src_frame, src_lay, _src_hbox = _make_section_frame(
             "SOURCE FILE", icon_name="folder", accent="#E8820C", parent=inner,
         )
+
+        row1, self._imp_step1_badge, self._imp_step1_confirm = \
+            self._mk_step_header("1", "BROWSE GLB FILE")
+        src_lay.addLayout(row1)
+
+        s1_hint = QtWidgets.QLabel("Pick the .glb / .gltf file to import.")
+        s1_hint.setObjectName("hint")
+        s1_hint.setWordWrap(True)
+        src_lay.addWidget(s1_hint)
 
         lbl = QtWidgets.QLabel("GLB File:")
         lbl.setObjectName("ctrlLabel")
@@ -1687,13 +1732,13 @@ class GLBManager(object):
         self._imp_path_fld.setReadOnly(True)
         self._imp_path_fld.setPlaceholderText("No file selected…")
         self._imp_path_fld.setMinimumHeight(32)
-        browse_btn = QtWidgets.QPushButton("Browse…")
-        browse_btn.setObjectName("btnApply")
-        browse_btn.setMinimumHeight(32)
-        browse_btn.setMinimumWidth(110)
-        browse_btn.clicked.connect(self._browse_glb)
+        self._imp_browse_btn = QtWidgets.QPushButton("Browse…")
+        self._imp_browse_btn.setObjectName("btnStepActive")
+        self._imp_browse_btn.setMinimumHeight(32)
+        self._imp_browse_btn.setMinimumWidth(110)
+        self._imp_browse_btn.clicked.connect(self._browse_glb)
         file_row.addWidget(self._imp_path_fld, 1)
-        file_row.addWidget(browse_btn)
+        file_row.addWidget(self._imp_browse_btn)
         src_lay.addLayout(file_row)
 
         lbl2 = QtWidgets.QLabel("Asset Name:")
@@ -1704,12 +1749,23 @@ class GLBManager(object):
         self._imp_name_fld.setMinimumHeight(32)
         src_lay.addWidget(self._imp_name_fld)
 
-        vbox.addWidget(src_frame)
+        vbox.addWidget(self._imp_src_frame)
 
-        # ── OPTIONS section ─────────────────────────────────────────────────
-        opt_frame, opt_lay, _opt_hbox = _make_section_frame(
+        # ── STEP 2 — CONFIGURE OPTIONS (OPTIONS section) ────────────────────
+        self._imp_opt_frame, opt_lay, _opt_hbox = _make_section_frame(
             "OPTIONS", icon_name="utilities", accent="#34B3A0", parent=inner,
         )
+
+        row2, self._imp_step2_badge, self._imp_step2_confirm = \
+            self._mk_step_header("2", "CONFIGURE OPTIONS")
+        opt_lay.addLayout(row2)
+
+        s2_hint = QtWidgets.QLabel(
+            "Set the import options, then press Use These Settings to continue."
+        )
+        s2_hint.setObjectName("hint")
+        s2_hint.setWordWrap(True)
+        opt_lay.addWidget(s2_hint)
 
         self._imp_uv_chk = QtWidgets.QCheckBox("Import UVs")
         self._imp_uv_chk.setChecked(True)
@@ -1751,7 +1807,7 @@ class GLBManager(object):
         mat_row_hbox.setSpacing(8)
 
         shader_lbl = QtWidgets.QLabel("Shader:")
-        shader_lbl.setStyleSheet("font-weight: bold;")
+        shader_lbl.setObjectName("ctrlLabel")
         mat_row_hbox.addWidget(shader_lbl)
 
         self._imp_shader_menu = QtWidgets.QComboBox()
@@ -1760,7 +1816,7 @@ class GLBManager(object):
         mat_row_hbox.addWidget(self._imp_shader_menu)
 
         cs_lbl = QtWidgets.QLabel("Color Space:")
-        cs_lbl.setStyleSheet("font-weight: bold;")
+        cs_lbl.setObjectName("ctrlLabel")
         mat_row_hbox.addWidget(cs_lbl)
 
         self._imp_aces_menu = QtWidgets.QComboBox()
@@ -1778,26 +1834,57 @@ class GLBManager(object):
         self._imp_ref_chk.setChecked(False)
         opt_lay.addWidget(self._imp_ref_chk)
 
-        vbox.addWidget(opt_frame)
+        # Confirm-options step button (turns step 2 DONE, unlocks step 3).
+        # Editing any option after confirming re-opens step 2 (and re-locks 3).
+        for _w in (self._imp_uv_chk, self._imp_tex_chk, self._imp_mat_chk,
+                   self._imp_ref_chk):
+            _w.toggled.connect(self._on_import_option_changed)
+        self._imp_shader_menu.currentIndexChanged.connect(
+            self._on_import_option_changed)
+        self._imp_aces_menu.currentIndexChanged.connect(
+            self._on_import_option_changed)
 
-        # ── PROGRESS / STATUS ───────────────────────────────────────────────
-        # Progress bar
+        confirm_row = QtWidgets.QHBoxLayout()
+        confirm_row.addStretch(1)
+        self._imp_confirm_btn = QtWidgets.QPushButton("Use These Settings")
+        self._imp_confirm_btn.setObjectName("btnStepLocked")
+        self._imp_confirm_btn.setMinimumHeight(32)
+        self._imp_confirm_btn.setMinimumWidth(160)
+        self._imp_confirm_btn.clicked.connect(self._confirm_import_options)
+        confirm_row.addWidget(self._imp_confirm_btn)
+        opt_lay.addLayout(confirm_row)
+
+        vbox.addWidget(self._imp_opt_frame)
+
+        # ── STEP 3 — IMPORT (RUN section) ───────────────────────────────────
+        self._imp_run_frame, run_lay, _run_hbox = _make_section_frame(
+            "IMPORT", icon_name="utilities", accent="#E8820C", parent=inner,
+        )
+
+        row3, self._imp_step3_badge, self._imp_step3_confirm = \
+            self._mk_step_header("3", "IMPORT")
+        run_lay.addLayout(row3)
+
+        s3_hint = QtWidgets.QLabel(
+            "Build the asset in Maya from the chosen file and options."
+        )
+        s3_hint.setObjectName("hint")
+        s3_hint.setWordWrap(True)
+        run_lay.addWidget(s3_hint)
+
+        # Progress bar (no inline colour — styled by tool_qss).
         self._imp_prog = QtWidgets.QProgressBar()
         self._imp_prog.setMaximum(_IMP_STEPS)
         self._imp_prog.setValue(0)
         self._imp_prog.setFixedHeight(14)
+        self._imp_prog.setTextVisible(False)
         self._imp_prog.setVisible(False)
-        self._imp_prog.setStyleSheet(
-            "QProgressBar { background: #2c2c2c; border: 1px solid #262626; "
-            "border-radius: 2px; } "
-            "QProgressBar::chunk { background: #E8820C; border-radius: 2px; }"
-        )
-        vbox.addWidget(self._imp_prog)
+        run_lay.addWidget(self._imp_prog)
 
         self._imp_prog_lbl = QtWidgets.QLabel("")
         self._imp_prog_lbl.setObjectName("hint")
         self._imp_prog_lbl.setVisible(False)
-        vbox.addWidget(self._imp_prog_lbl)
+        run_lay.addWidget(self._imp_prog_lbl)
 
         # Status bar
         self._import_status = QtWidgets.QLabel(
@@ -1805,17 +1892,21 @@ class GLBManager(object):
         )
         self._import_status.setObjectName("statusIdle")
         self._import_status.setWordWrap(True)
-        vbox.addWidget(self._import_status)
+        run_lay.addWidget(self._import_status)
 
-        # Import button
-        import_btn = QtWidgets.QPushButton("Import")
-        import_btn.setObjectName("btnPrimary")
-        import_btn.setMinimumHeight(42)
-        import_btn.clicked.connect(self._do_import)
-        vbox.addWidget(import_btn)
+        # Import button — the step-3 action button.
+        self._imp_import_btn = QtWidgets.QPushButton("Import")
+        self._imp_import_btn.setObjectName("btnStepLocked")
+        self._imp_import_btn.setMinimumHeight(42)
+        self._imp_import_btn.clicked.connect(self._do_import)
+        run_lay.addWidget(self._imp_import_btn)
+
+        vbox.addWidget(self._imp_run_frame)
 
         vbox.addStretch()
         scroll.setWidget(inner)
+
+        self._update_import_steps()
         return scroll
 
     # ── EXPORT TAB ────────────────────────────────────────────────────────────
@@ -1830,10 +1921,64 @@ class GLBManager(object):
         vbox.setContentsMargins(14, 12, 14, 14)
         vbox.setSpacing(10)
 
-        # ── OUTPUT section ──────────────────────────────────────────────────
-        out_frame, out_lay, _out_hbox = _make_section_frame(
-            "OUTPUT", icon_name="folder", accent="#E8820C", parent=inner,
+        intro = QtWidgets.QLabel(
+            "Follow the numbers — the orange step is what to do next; "
+            "it turns green when done."
         )
+        intro.setObjectName("hint")
+        intro.setWordWrap(True)
+        vbox.addWidget(intro)
+
+        # ── STEP 1 — SELECT OBJECTS TO EXPORT (SELECTION section) ───────────
+        self._exp_sel_frame, sel_lay, _sel_hbox = _make_section_frame(
+            "SELECTION", icon_name="scene", accent="#4F9DE0", parent=inner,
+        )
+
+        row1, self._exp_step1_badge, self._exp_step1_confirm = \
+            self._mk_step_header("1", "SELECT OBJECTS TO EXPORT")
+        sel_lay.addLayout(row1)
+
+        s1_hint = QtWidgets.QLabel(
+            "In the SCENE tab, select the objects you want, then press "
+            "Use Scene Selection. Groups are auto-expanded on export."
+        )
+        s1_hint.setObjectName("hint")
+        s1_hint.setWordWrap(True)
+        sel_lay.addWidget(s1_hint)
+
+        self._exp_sel_label = QtWidgets.QLabel("No objects selected yet.")
+        self._exp_sel_label.setObjectName("selLabel")
+        self._exp_sel_label.setWordWrap(True)
+        sel_lay.addWidget(self._exp_sel_label)
+
+        sel_btn_row = QtWidgets.QHBoxLayout()
+        sel_btn_row.addStretch(1)
+        self._exp_sel_btn = QtWidgets.QPushButton("Use Scene Selection")
+        self._exp_sel_btn.setObjectName("btnStepActive")
+        self._exp_sel_btn.setMinimumHeight(32)
+        self._exp_sel_btn.setMinimumWidth(170)
+        self._exp_sel_btn.clicked.connect(self._capture_export_selection)
+        sel_btn_row.addWidget(self._exp_sel_btn)
+        sel_lay.addLayout(sel_btn_row)
+
+        vbox.addWidget(self._exp_sel_frame)
+
+        # ── STEP 2 — OUTPUT OPTIONS (OUTPUT section) ────────────────────────
+        self._exp_out_frame, out_lay, _out_hbox = _make_section_frame(
+            "OUTPUT OPTIONS", icon_name="folder", accent="#E8820C", parent=inner,
+        )
+
+        row2, self._exp_step2_badge, self._exp_step2_confirm = \
+            self._mk_step_header("2", "OUTPUT OPTIONS")
+        out_lay.addLayout(row2)
+
+        s2_hint = QtWidgets.QLabel(
+            "Set the output .glb path and export options, then press "
+            "Use These Settings to continue."
+        )
+        s2_hint.setObjectName("hint")
+        s2_hint.setWordWrap(True)
+        out_lay.addWidget(s2_hint)
 
         exp_lbl2 = QtWidgets.QLabel("Export File:")
         exp_lbl2.setObjectName("ctrlLabel")
@@ -1853,58 +1998,79 @@ class GLBManager(object):
         out_row.addWidget(out_browse_btn)
         out_lay.addLayout(out_row)
 
-        vbox.addWidget(out_frame)
-
-        # ── OPTIONS section ─────────────────────────────────────────────────
-        opt_frame, opt_lay, _opt_hbox = _make_section_frame(
-            "OPTIONS", icon_name="utilities", accent="#34B3A0", parent=inner,
-        )
-
         self._exp_norm_chk = QtWidgets.QCheckBox("Export Normals")
         self._exp_norm_chk.setChecked(True)
-        opt_lay.addWidget(self._exp_norm_chk)
+        out_lay.addWidget(self._exp_norm_chk)
 
         self._exp_uv_chk = QtWidgets.QCheckBox("Export UVs")
         self._exp_uv_chk.setChecked(True)
-        opt_lay.addWidget(self._exp_uv_chk)
+        out_lay.addWidget(self._exp_uv_chk)
 
         self._exp_tex_chk = QtWidgets.QCheckBox(
             "Embed Texture Files  (DIFF / MTL / RGH / NRM — base colour always exported)"
         )
         self._exp_tex_chk.setChecked(True)
-        opt_lay.addWidget(self._exp_tex_chk)
+        out_lay.addWidget(self._exp_tex_chk)
 
         self._exp_cam_chk = QtWidgets.QCheckBox(
             "Export Cameras (perspective, no animation)"
         )
         self._exp_cam_chk.setChecked(True)
-        opt_lay.addWidget(self._exp_cam_chk)
+        out_lay.addWidget(self._exp_cam_chk)
 
         self._exp_orm_chk = QtWidgets.QCheckBox(
             "Pack ORM Channels  (requires Pillow)"
         )
         self._exp_orm_chk.setChecked(False)
-        opt_lay.addWidget(self._exp_orm_chk)
+        out_lay.addWidget(self._exp_orm_chk)
 
-        vbox.addWidget(opt_frame)
+        # Editing path or any option after confirming re-opens step 2.
+        self._exp_path_fld.textEdited.connect(self._on_export_option_changed)
+        for _w in (self._exp_norm_chk, self._exp_uv_chk, self._exp_tex_chk,
+                   self._exp_cam_chk, self._exp_orm_chk):
+            _w.toggled.connect(self._on_export_option_changed)
 
-        # ── PROGRESS / STATUS ───────────────────────────────────────────────
+        confirm_row = QtWidgets.QHBoxLayout()
+        confirm_row.addStretch(1)
+        self._exp_confirm_btn = QtWidgets.QPushButton("Use These Settings")
+        self._exp_confirm_btn.setObjectName("btnStepLocked")
+        self._exp_confirm_btn.setMinimumHeight(32)
+        self._exp_confirm_btn.setMinimumWidth(160)
+        self._exp_confirm_btn.clicked.connect(self._confirm_export_options)
+        confirm_row.addWidget(self._exp_confirm_btn)
+        out_lay.addLayout(confirm_row)
+
+        vbox.addWidget(self._exp_out_frame)
+
+        # ── STEP 3 — EXPORT (RUN section) ───────────────────────────────────
+        self._exp_run_frame, run_lay, _run_hbox = _make_section_frame(
+            "EXPORT", icon_name="utilities", accent="#E8820C", parent=inner,
+        )
+
+        row3, self._exp_step3_badge, self._exp_step3_confirm = \
+            self._mk_step_header("3", "EXPORT")
+        run_lay.addLayout(row3)
+
+        s3_hint = QtWidgets.QLabel(
+            "Write the selected objects to the output .glb file."
+        )
+        s3_hint.setObjectName("hint")
+        s3_hint.setWordWrap(True)
+        run_lay.addWidget(s3_hint)
+
+        # Progress bar (no inline colour — styled by tool_qss).
         self._exp_prog = QtWidgets.QProgressBar()
         self._exp_prog.setMaximum(_EXP_STEPS)
         self._exp_prog.setValue(0)
         self._exp_prog.setFixedHeight(14)
+        self._exp_prog.setTextVisible(False)
         self._exp_prog.setVisible(False)
-        self._exp_prog.setStyleSheet(
-            "QProgressBar { background: #2c2c2c; border: 1px solid #262626; "
-            "border-radius: 2px; } "
-            "QProgressBar::chunk { background: #E8820C; border-radius: 2px; }"
-        )
-        vbox.addWidget(self._exp_prog)
+        run_lay.addWidget(self._exp_prog)
 
         self._exp_prog_lbl = QtWidgets.QLabel("")
         self._exp_prog_lbl.setObjectName("hint")
         self._exp_prog_lbl.setVisible(False)
-        vbox.addWidget(self._exp_prog_lbl)
+        run_lay.addWidget(self._exp_prog_lbl)
 
         # Status
         self._export_status = QtWidgets.QLabel(
@@ -1912,17 +2078,21 @@ class GLBManager(object):
         )
         self._export_status.setObjectName("statusIdle")
         self._export_status.setWordWrap(True)
-        vbox.addWidget(self._export_status)
+        run_lay.addWidget(self._export_status)
 
-        # Export button
-        export_btn = QtWidgets.QPushButton("Export GLB")
-        export_btn.setObjectName("btnPrimary")
-        export_btn.setMinimumHeight(42)
-        export_btn.clicked.connect(self._do_export)
-        vbox.addWidget(export_btn)
+        # Export button — the step-3 action button.
+        self._exp_export_btn = QtWidgets.QPushButton("Export GLB")
+        self._exp_export_btn.setObjectName("btnStepLocked")
+        self._exp_export_btn.setMinimumHeight(42)
+        self._exp_export_btn.clicked.connect(self._do_export)
+        run_lay.addWidget(self._exp_export_btn)
+
+        vbox.addWidget(self._exp_run_frame)
 
         vbox.addStretch()
         scroll.setWidget(inner)
+
+        self._update_export_steps()
         return scroll
 
     # ── SCENE TAB ────────────────────────────────────────────────────────────
@@ -1992,6 +2162,263 @@ class GLBManager(object):
         scroll.setWidget(inner)
         return scroll
 
+    # ── Guided-flow helpers (replicated from the TurnTable reference) ──────────
+
+    @staticmethod
+    def _repolish(w):
+        if w is not None:
+            w.style().unpolish(w)
+            w.style().polish(w)
+
+    def _mk_step_badge(self, text):
+        """Small numbered badge: grey (locked) / orange (active) / green (done)."""
+        try:
+            from PySide6 import QtWidgets, QtCore
+        except ImportError:
+            from PySide2 import QtWidgets, QtCore
+        b = QtWidgets.QLabel(str(text))
+        b.setFixedSize(22, 22)
+        b.setAlignment(QtCore.Qt.AlignCenter)
+        b.setObjectName("stepLocked")
+        return b
+
+    def _mk_step_confirm(self):
+        """Right-side 'done' badge — the single confirmation per step."""
+        try:
+            from PySide6 import QtWidgets, QtCore
+        except ImportError:
+            from PySide2 import QtWidgets, QtCore
+        c = QtWidgets.QLabel("")
+        c.setObjectName("stepConfirmEmpty")
+        c.setFixedWidth(58)
+        c.setAlignment(QtCore.Qt.AlignVCenter | QtCore.Qt.AlignLeft)
+        return c
+
+    def _set_badge(self, badge, state):
+        if badge is None:
+            return
+        badge.setObjectName(
+            {"locked": "stepLocked", "active": "stepReady", "done": "stepDone"}[state]
+        )
+        self._repolish(badge)
+
+    def _set_step_btn(self, btn, state, gate_enable=True):
+        if btn is None:
+            return
+        btn.setObjectName(
+            {"locked": "btnStepLocked", "active": "btnStepActive",
+             "done": "btnStepDone"}[state]
+        )
+        if gate_enable:
+            btn.setEnabled(state != "locked")
+        self._repolish(btn)
+
+    def _btn_obj(self, btn, name):
+        if btn is None:
+            return
+        btn.setObjectName(name)
+        self._repolish(btn)
+
+    def _set_confirm(self, confirm, done):
+        if confirm is None:
+            return
+        confirm.setText("✓ done" if done else "")
+        confirm.setObjectName("stepConfirmDone" if done else "stepConfirmEmpty")
+        self._repolish(confirm)
+
+    def _mk_step_header(self, num, title):
+        """Numbered step header row: [badge] TITLE ............ [✓ done].
+        Returns (hbox, badge, confirm)."""
+        try:
+            from PySide6 import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
+        badge   = self._mk_step_badge(num)
+        confirm = self._mk_step_confirm()
+        lbl = QtWidgets.QLabel(title)
+        lbl.setObjectName("stepTitle")
+        row = QtWidgets.QHBoxLayout()
+        row.setSpacing(8)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.addWidget(badge)
+        row.addWidget(lbl, 1)
+        row.addWidget(confirm)
+        return row, badge, confirm
+
+    # ── IMPORT step gating ─────────────────────────────────────────────────────
+
+    def _imp_file_ok(self):
+        """Step 1 reality: a real .glb/.gltf path is in the file field."""
+        p = self._imp_path_fld.text().strip() if self._imp_path_fld else ""
+        return bool(p) and p.lower().endswith((".glb", ".gltf")) and os.path.isfile(p)
+
+    def _on_import_option_changed(self, *_):
+        """Changing any option after confirming re-opens step 2 and re-locks 3."""
+        if self._imp_opts_confirmed:
+            self._imp_opts_confirmed = False
+            self._imp_done = False
+            self._update_import_steps()
+
+    def _confirm_import_options(self):
+        """Step 2 action: lock in the chosen options, unlock step 3."""
+        if not self._imp_file_ok():
+            return
+        self._imp_opts_confirmed = True
+        self._update_import_steps()
+
+    def _update_import_steps(self):
+        """State machine: 1 Browse -> 2 Confirm options -> 3 Import.
+        Every state is derived from reality; future steps are disabled."""
+        if self._imp_step1_badge is None:
+            return
+        file_ok = self._imp_file_ok()
+        opts_ok = file_ok and self._imp_opts_confirmed
+        done    = opts_ok and self._imp_done
+
+        # Step 1 — Browse GLB file
+        if file_ok:
+            self._set_badge(self._imp_step1_badge, "done")
+            self._set_confirm(self._imp_step1_confirm, True)
+            self._btn_obj(self._imp_browse_btn, "btnApply")
+        else:
+            self._set_badge(self._imp_step1_badge, "active")
+            self._set_confirm(self._imp_step1_confirm, False)
+            self._btn_obj(self._imp_browse_btn, "btnStepActive")
+        self._imp_name_fld.setEnabled(True)
+
+        # Step 2 — Configure options (locked until step 1 done)
+        self._imp_opt_frame.setEnabled(file_ok)
+        if opts_ok:
+            self._set_badge(self._imp_step2_badge, "done")
+            self._set_confirm(self._imp_step2_confirm, True)
+            self._set_step_btn(self._imp_confirm_btn, "done")
+        else:
+            st = "active" if file_ok else "locked"
+            self._set_badge(self._imp_step2_badge, st)
+            self._set_confirm(self._imp_step2_confirm, False)
+            self._set_step_btn(self._imp_confirm_btn, st)
+
+        # Step 3 — Import (locked until step 2 done)
+        if done:
+            self._set_badge(self._imp_step3_badge, "done")
+            self._set_confirm(self._imp_step3_confirm, True)
+            self._set_step_btn(self._imp_import_btn, "done")
+        else:
+            st = "active" if opts_ok else "locked"
+            self._set_badge(self._imp_step3_badge, st)
+            self._set_confirm(self._imp_step3_confirm, False)
+            self._set_step_btn(self._imp_import_btn, st)
+
+        # Section progress states
+        if self._imp_src_frame:
+            self._imp_src_frame.set_state("done" if file_ok else "active")
+        if self._imp_opt_frame:
+            self._imp_opt_frame.set_state(
+                "done" if opts_ok else ("active" if file_ok else "idle"))
+        if self._imp_run_frame:
+            self._imp_run_frame.set_state(
+                "done" if done else ("active" if opts_ok else "idle"))
+
+    # ── EXPORT step gating ─────────────────────────────────────────────────────
+
+    def _capture_export_selection(self):
+        """Step 1 action: capture the SCENE-tab selection (resolved to DAG
+        paths) as the export source. DONE when ≥1 valid object is captured."""
+        sel_items = [
+            self._hier_list.item(i).text()
+            for i in range(self._hier_list.count())
+            if self._hier_list.item(i).isSelected()
+        ]
+        node_names = []
+        for item in sel_items:
+            dag = _HIER_MAP.get(item, "")
+            if dag and cmds.objExists(dag):
+                node_names.append(dag)
+        self._exp_node_names = node_names
+        self._exp_sel_count  = len(node_names)
+        # Re-capturing the source invalidates downstream confirmation + export.
+        self._exp_opts_confirmed = False
+        self._exp_done           = False
+        if self._exp_sel_count:
+            shorts = ", ".join(n.split('|')[-1] for n in node_names[:6])
+            if self._exp_sel_count > 6:
+                shorts += ", …"
+            self._exp_sel_label.setText(
+                "{} object(s) selected:  {}".format(self._exp_sel_count, shorts))
+        else:
+            self._exp_sel_label.setText(
+                "No objects selected — pick them in the SCENE tab first.")
+        self._update_export_steps()
+
+    def _on_export_option_changed(self, *_):
+        """Changing the path or any option after confirming re-opens step 2."""
+        if self._exp_opts_confirmed:
+            self._exp_opts_confirmed = False
+            self._exp_done = False
+            self._update_export_steps()
+
+    def _exp_path_ok(self):
+        return bool(self._exp_path_fld and self._exp_path_fld.text().strip())
+
+    def _confirm_export_options(self):
+        """Step 2 action: lock in the output path + options, unlock step 3."""
+        if not (self._exp_sel_count and self._exp_path_ok()):
+            return
+        self._exp_opts_confirmed = True
+        self._update_export_steps()
+
+    def _update_export_steps(self):
+        """State machine: 1 Select objects -> 2 Output options -> 3 Export.
+        Every state is derived from reality; future steps are disabled."""
+        if self._exp_step1_badge is None:
+            return
+        sel_ok  = self._exp_sel_count > 0
+        opts_ok = sel_ok and self._exp_opts_confirmed and self._exp_path_ok()
+        done    = opts_ok and self._exp_done
+
+        # Step 1 — Select objects
+        if sel_ok:
+            self._set_badge(self._exp_step1_badge, "done")
+            self._set_confirm(self._exp_step1_confirm, True)
+            self._btn_obj(self._exp_sel_btn, "btnApply")
+        else:
+            self._set_badge(self._exp_step1_badge, "active")
+            self._set_confirm(self._exp_step1_confirm, False)
+            self._btn_obj(self._exp_sel_btn, "btnStepActive")
+
+        # Step 2 — Output options (locked until step 1 done)
+        self._exp_out_frame.setEnabled(sel_ok)
+        if opts_ok:
+            self._set_badge(self._exp_step2_badge, "done")
+            self._set_confirm(self._exp_step2_confirm, True)
+            self._set_step_btn(self._exp_confirm_btn, "done")
+        else:
+            st = "active" if sel_ok else "locked"
+            self._set_badge(self._exp_step2_badge, st)
+            self._set_confirm(self._exp_step2_confirm, False)
+            self._set_step_btn(self._exp_confirm_btn, st)
+
+        # Step 3 — Export (locked until step 2 done)
+        if done:
+            self._set_badge(self._exp_step3_badge, "done")
+            self._set_confirm(self._exp_step3_confirm, True)
+            self._set_step_btn(self._exp_export_btn, "done")
+        else:
+            st = "active" if opts_ok else "locked"
+            self._set_badge(self._exp_step3_badge, st)
+            self._set_confirm(self._exp_step3_confirm, False)
+            self._set_step_btn(self._exp_export_btn, st)
+
+        # Section progress states
+        if self._exp_sel_frame:
+            self._exp_sel_frame.set_state("done" if sel_ok else "active")
+        if self._exp_out_frame:
+            self._exp_out_frame.set_state(
+                "done" if opts_ok else ("active" if sel_ok else "idle"))
+        if self._exp_run_frame:
+            self._exp_run_frame.set_state(
+                "done" if done else ("active" if opts_ok else "idle"))
+
     # ── Status helpers ────────────────────────────────────────────────────────
 
     def _set_import_status(self, msg, state="idle"):
@@ -2023,6 +2450,10 @@ class GLBManager(object):
             auto = (os.path.splitext(os.path.basename(path))[0]
                     .replace("-", "_").replace(" ", "_").replace(".", "_"))
             self._imp_name_fld.setText(auto)
+        # A new file invalidates downstream confirmation + the completed import.
+        self._imp_opts_confirmed = False
+        self._imp_done           = False
+        self._update_import_steps()
 
     def _browse_tex_folder(self):
         res = cmds.fileDialog2(fileMode=3, caption="Select Folder")
@@ -2031,6 +2462,9 @@ class GLBManager(object):
 
     def _do_import(self):
         from PySide6 import QtWidgets as QW
+        # Step-gate guard (defense in depth — the button is also disabled).
+        if not (self._imp_file_ok() and self._imp_opts_confirmed):
+            return
         path = self._imp_path_fld.text().strip()
         if not path:
             self._set_import_status("✕  No file selected.", "err")
@@ -2099,6 +2533,9 @@ class GLBManager(object):
 
             self._imp_prog.setVisible(False)
             self._imp_prog_lbl.setVisible(False)
+            # Step 3 done only on a clean import success.
+            self._imp_done = True
+            self._update_import_steps()
             # Refresh scene hierarchy
             self._refresh_hierarchy()
 
@@ -2122,18 +2559,44 @@ class GLBManager(object):
             if not path.lower().endswith('.glb'):
                 path += '.glb'
             self._exp_path_fld.setText(path)
+            # setText() does not emit textEdited — invalidate + re-gate by hand.
+            self._exp_opts_confirmed = False
+            self._exp_done           = False
+            self._update_export_steps()
 
     def _do_export(self):
         from PySide6 import QtWidgets as QW
 
-        sel_items = [
-            self._hier_list.item(i).text()
-            for i in range(self._hier_list.count())
-            if self._hier_list.item(i).isSelected()
-        ]
-        if not sel_items:
+        # Step-gate guard (defense in depth — the button is also disabled).
+        if not (self._exp_sel_count > 0 and self._exp_opts_confirmed
+                and self._exp_path_ok()):
+            return
+
+        # Selection captured at step 1 (Use Scene Selection). Fall back to the
+        # live Scene-tab selection if nothing was captured — same resolution
+        # logic as before (DAG path lookup + objExists), only sourced earlier.
+        node_names = list(getattr(self, "_exp_node_names", []) or [])
+        if not node_names:
+            sel_items = [
+                self._hier_list.item(i).text()
+                for i in range(self._hier_list.count())
+                if self._hier_list.item(i).isSelected()
+            ]
+            if not sel_items:
+                self._set_export_status(
+                    "✕  Select at least one object in the Scene tab.", "err"
+                )
+                return
+            for item in sel_items:
+                dag = _HIER_MAP.get(item, "")
+                if dag and cmds.objExists(dag):
+                    node_names.append(dag)
+
+        # Drop any captured nodes that no longer exist.
+        node_names = [n for n in node_names if cmds.objExists(n)]
+        if not node_names:
             self._set_export_status(
-                "✕  Select at least one object in the Scene tab.", "err"
+                "✕  Selected objects no longer exist — Refresh the Scene tab.", "err"
             )
             return
 
@@ -2145,18 +2608,6 @@ class GLBManager(object):
             return
         if not out_path.lower().endswith('.glb'):
             out_path += '.glb'
-
-        # Resolve DAG paths from display strings
-        node_names = []
-        for item in sel_items:
-            dag = _HIER_MAP.get(item, "")
-            if dag and cmds.objExists(dag):
-                node_names.append(dag)
-        if not node_names:
-            self._set_export_status(
-                "✕  Selected objects no longer exist — Refresh the Scene tab.", "err"
-            )
-            return
 
         export_normals = self._exp_norm_chk.isChecked()
         export_uvs     = self._exp_uv_chk.isChecked()
@@ -2201,6 +2652,9 @@ class GLBManager(object):
 
             self._exp_prog.setVisible(False)
             self._exp_prog_lbl.setVisible(False)
+            # Step 3 done only on a clean export success.
+            self._exp_done = True
+            self._update_export_steps()
 
         except ValueError as exc:
             msg = str(exc)

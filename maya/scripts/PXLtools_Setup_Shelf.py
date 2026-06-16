@@ -141,8 +141,8 @@ def setup_shelf():
 
     # One button per INSTALLED tool (newest version). Tools whose file isn't present
     # are skipped — so the public TurnTable-only package shows just that button,
-    # while a full local install shows them all. (No Update button — updates come
-    # from the GitHub release flow / re-running the installer.)
+    # while a full local install shows them all. An "Update" button at the end
+    # re-scans + rebuilds the shelf with the NEWEST version of each tool.
     loaded = 0
     for tool in TOOLS:
         module = _latest_module(tool["module"])
@@ -158,6 +158,26 @@ def setup_shelf():
             style="iconOnly",
         )
         loaded += 1
+
+    # ── Update button ─────────────────────────────────────────────────────────
+    # Re-scans the scripts dir and rebuilds the shelf with the newest version of
+    # each tool. Deferred (lowestPriority) so the click event unwinds BEFORE the
+    # shelf is deleted/recreated — without this, rebuilding in-handler crashes Maya.
+    cmds.separator(parent=shelf, style="none", width=8)
+    cmds.shelfButton(
+        parent=shelf,
+        label="Update",
+        annotation="Update PXLtools  --  rescan + rebuild the shelf with the latest version of each tool",
+        image=UPDATE_ICON,
+        command=(
+            "import maya.cmds as _c\n"
+            "def _pxl_rebuild():\n"
+            "    import importlib, PXLtools_Setup_Shelf as _s; importlib.reload(_s)\n"
+            "_c.evalDeferred(_pxl_rebuild, lowestPriority=True)"
+        ),
+        sourceType="python",
+        style="iconOnly",
+    )
 
     cmds.shelfTabLayout(shelf_top, edit=True, selectTab=SHELF_NAME)
     cmds.inViewMessage(
