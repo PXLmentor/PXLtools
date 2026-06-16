@@ -275,6 +275,9 @@ class CollapsibleSection(QtWidgets.QWidget):
 
         self._icon_lbl = QtWidgets.QLabel()
         self._icon_lbl.setFixedWidth(theme.m("icon"))
+        # transparent bg so the global QWidget{background:#333} rule doesn't paint
+        # an opaque block over the header bar (would break it into segments).
+        self._icon_lbl.setStyleSheet("background: transparent;")
         if icon_name:
             self._icon_lbl.setPixmap(
                 icons.pixmap(icon_name, theme.m("icon"), self._accent_col))
@@ -282,11 +285,13 @@ class CollapsibleSection(QtWidgets.QWidget):
 
         self._title = QtWidgets.QLabel(title)
         self._title.setFont(_font(theme.m("fs_section"), QtGui.QFont.DemiBold))
+        self._title.setStyleSheet("background: transparent; color: %s;" % theme.c("text"))
         h.addWidget(self._title)
         h.addStretch(1)
 
         self._chevron = QtWidgets.QLabel()
         self._chevron.setFixedWidth(16)
+        self._chevron.setStyleSheet("background: transparent;")
         h.addWidget(self._chevron)
 
         outer.addWidget(self.header)
