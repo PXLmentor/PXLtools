@@ -147,8 +147,8 @@ if not _log.handlers:
 # =============================================================================
 
 TOOL_NAME          = "GLB Manager"
-VERSION            = "0.3.0-alpha"
-WINDOW_OBJECT_NAME = "PXLtoolsGLBManager_v030"
+VERSION            = "0.4.0-alpha"
+WINDOW_OBJECT_NAME = "PXLtoolsGLBManager_v040"
 ICON_NAME          = "icon_glb_manager.png"
 ICON_FALLBACK      = "icon_glb_importer.png"
 
@@ -1529,6 +1529,9 @@ def _make_section_frame(title, icon_name=None, accent=None, parent=None):
 
     _apply_header_bg("idle")
     container.set_state = set_state
+    # collapse support — hide the body, keep the header. Used to auto-close a
+    # completed section (e.g. SOURCE FILE once the asset name is applied).
+    container.set_collapsed = lambda c, _b=body: _b.setVisible(not c)
 
     return container, body_layout, hbox
 
@@ -1587,6 +1590,7 @@ class GLBManager(object):
         # ── Guided-flow state (derived from reality; reset recomputes) ────────
         # IMPORT : step1 file chosen, step2 options confirmed, step3 imported.
         # EXPORT : step1 objects chosen, step2 output confirmed, step3 exported.
+        self._imp_name_confirmed = False
         self._imp_opts_confirmed = False
         self._imp_done           = False
         self._exp_sel_count      = 0
@@ -1741,13 +1745,37 @@ class GLBManager(object):
         file_row.addWidget(self._imp_browse_btn)
         src_lay.addLayout(file_row)
 
+        # ── STEP 2 — ASSET NAME (Apply collapses SOURCE FILE, opens OPTIONS) ──
+        row2, self._imp_step2_badge, self._imp_step2_confirm = \
+            self._mk_step_header("2", "ASSET NAME")
+        src_lay.addLayout(row2)
+
+        s2n_hint = QtWidgets.QLabel(
+            "Confirm the name (auto-filled from the file) or type your own, "
+            "then press Apply."
+        )
+        s2n_hint.setObjectName("hint")
+        s2n_hint.setWordWrap(True)
+        src_lay.addWidget(s2n_hint)
+
         lbl2 = QtWidgets.QLabel("Asset Name:")
         lbl2.setObjectName("ctrlLabel")
         src_lay.addWidget(lbl2)
         self._imp_name_fld = QtWidgets.QLineEdit()
         self._imp_name_fld.setPlaceholderText("Auto from filename…")
         self._imp_name_fld.setMinimumHeight(32)
+        self._imp_name_fld.textEdited.connect(self._on_import_name_changed)
         src_lay.addWidget(self._imp_name_fld)
+
+        name_row = QtWidgets.QHBoxLayout()
+        name_row.addStretch(1)
+        self._imp_name_apply_btn = QtWidgets.QPushButton("Apply")
+        self._imp_name_apply_btn.setObjectName("btnStepLocked")
+        self._imp_name_apply_btn.setMinimumHeight(32)
+        self._imp_name_apply_btn.setMinimumWidth(120)
+        self._imp_name_apply_btn.clicked.connect(self._confirm_import_name)
+        name_row.addWidget(self._imp_name_apply_btn)
+        src_lay.addLayout(name_row)
 
         vbox.addWidget(self._imp_src_frame)
 
@@ -1756,16 +1784,37 @@ class GLBManager(object):
             "OPTIONS", icon_name="utilities", accent="#34B3A0", parent=inner,
         )
 
-        row2, self._imp_step2_badge, self._imp_step2_confirm = \
-            self._mk_step_header("2", "CONFIGURE OPTIONS")
-        opt_lay.addLayout(row2)
+        row3, self._imp_step3_badge, self._imp_step3_confirm = \
+            self._mk_step_header("3", "OUTPUT FOLDER & OPTIONS")
+        opt_lay.addLayout(row3)
 
-        s2_hint = QtWidgets.QLabel(
-            "Set the import options, then press Use These Settings to continue."
+        s3_hint = QtWidgets.QLabel(
+            "Choose where extracted textures are saved, set the import options, "
+            "then press Use These Settings to continue."
         )
-        s2_hint.setObjectName("hint")
-        s2_hint.setWordWrap(True)
-        opt_lay.addWidget(s2_hint)
+        s3_hint.setObjectName("hint")
+        s3_hint.setWordWrap(True)
+        opt_lay.addWidget(s3_hint)
+
+        # Output folder — on top of the options.
+        of_lbl = QtWidgets.QLabel("Output Folder:")
+        of_lbl.setObjectName("ctrlLabel")
+        opt_lay.addWidget(of_lbl)
+        self._imp_tex_row = QtWidgets.QWidget()
+        _of_hbox = QtWidgets.QHBoxLayout(self._imp_tex_row)
+        _of_hbox.setContentsMargins(0, 0, 0, 0)
+        _of_hbox.setSpacing(6)
+        self._imp_tex_fld = QtWidgets.QLineEdit()
+        self._imp_tex_fld.setPlaceholderText("Folder for extracted textures…")
+        self._imp_tex_fld.setMinimumHeight(32)
+        _of_browse = QtWidgets.QPushButton("Browse…")
+        _of_browse.setObjectName("btnApply")
+        _of_browse.setMinimumHeight(32)
+        _of_browse.setMinimumWidth(110)
+        _of_browse.clicked.connect(self._browse_tex_folder)
+        _of_hbox.addWidget(self._imp_tex_fld, 1)
+        _of_hbox.addWidget(_of_browse)
+        opt_lay.addWidget(self._imp_tex_row)
 
         self._imp_uv_chk = QtWidgets.QCheckBox("Import UVs")
         self._imp_uv_chk.setChecked(True)
@@ -1777,23 +1826,8 @@ class GLBManager(object):
         self._imp_tex_chk.setChecked(True)
         opt_lay.addWidget(self._imp_tex_chk)
 
-        # Texture folder row
-        self._imp_tex_row = QtWidgets.QWidget()
-        tex_row_hbox = QtWidgets.QHBoxLayout(self._imp_tex_row)
-        tex_row_hbox.setContentsMargins(0, 0, 0, 0)
-        tex_row_hbox.setSpacing(6)
-        self._imp_tex_fld = QtWidgets.QLineEdit()
-        self._imp_tex_fld.setPlaceholderText("Texture output folder…")
-        self._imp_tex_fld.setMinimumHeight(32)
-        tex_browse_btn = QtWidgets.QPushButton("Browse…")
-        tex_browse_btn.setObjectName("btnApply")
-        tex_browse_btn.setMinimumHeight(32)
-        tex_browse_btn.setMinimumWidth(110)
-        tex_browse_btn.clicked.connect(self._browse_tex_folder)
-        tex_row_hbox.addWidget(self._imp_tex_fld, 1)
-        tex_row_hbox.addWidget(tex_browse_btn)
-        opt_lay.addWidget(self._imp_tex_row)
-
+        # Output-folder row is created at the TOP of this section; its enable
+        # state follows the Extract Textures toggle.
         self._imp_tex_chk.toggled.connect(self._imp_tex_row.setEnabled)
 
         self._imp_mat_chk = QtWidgets.QCheckBox("Create Material")
@@ -1861,9 +1895,9 @@ class GLBManager(object):
             "IMPORT", icon_name="utilities", accent="#E8820C", parent=inner,
         )
 
-        row3, self._imp_step3_badge, self._imp_step3_confirm = \
-            self._mk_step_header("3", "IMPORT")
-        run_lay.addLayout(row3)
+        row4, self._imp_step4_badge, self._imp_step4_confirm = \
+            self._mk_step_header("4", "IMPORT")
+        run_lay.addLayout(row4)
 
         s3_hint = QtWidgets.QLabel(
             "Build the asset in Maya from the chosen file and options."
@@ -2252,27 +2286,46 @@ class GLBManager(object):
         p = self._imp_path_fld.text().strip() if self._imp_path_fld else ""
         return bool(p) and p.lower().endswith((".glb", ".gltf")) and os.path.isfile(p)
 
+    def _on_import_name_changed(self, *_):
+        """Editing the asset name after applying re-opens step 2 (re-locks 3-4)."""
+        if self._imp_name_confirmed:
+            self._imp_name_confirmed = False
+            self._imp_opts_confirmed = False
+            self._imp_done = False
+            self._update_import_steps()
+
+    def _confirm_import_name(self):
+        """Step 2 action: lock in the asset name -> collapse SOURCE FILE, open OPTIONS."""
+        if not self._imp_file_ok():
+            return
+        if not self._imp_name_fld.text().strip():
+            return
+        self._imp_name_confirmed = True
+        self._update_import_steps()
+
     def _on_import_option_changed(self, *_):
-        """Changing any option after confirming re-opens step 2 and re-locks 3."""
+        """Changing any option after confirming re-opens step 3 and re-locks 4."""
         if self._imp_opts_confirmed:
             self._imp_opts_confirmed = False
             self._imp_done = False
             self._update_import_steps()
 
     def _confirm_import_options(self):
-        """Step 2 action: lock in the chosen options, unlock step 3."""
-        if not self._imp_file_ok():
+        """Step 3 action: lock in the chosen options, unlock step 4 (Import)."""
+        if not (self._imp_file_ok() and self._imp_name_confirmed):
             return
         self._imp_opts_confirmed = True
         self._update_import_steps()
 
     def _update_import_steps(self):
-        """State machine: 1 Browse -> 2 Confirm options -> 3 Import.
-        Every state is derived from reality; future steps are disabled."""
+        """State machine: 1 Browse -> 2 Name(Apply) -> 3 Options -> 4 Import.
+        Every state is derived from reality; future steps are disabled, and a
+        completed section auto-collapses so the active one is the focus."""
         if self._imp_step1_badge is None:
             return
         file_ok = self._imp_file_ok()
-        opts_ok = file_ok and self._imp_opts_confirmed
+        name_ok = file_ok and self._imp_name_confirmed
+        opts_ok = name_ok and self._imp_opts_confirmed
         done    = opts_ok and self._imp_done
 
         # Step 1 — Browse GLB file
@@ -2284,40 +2337,56 @@ class GLBManager(object):
             self._set_badge(self._imp_step1_badge, "active")
             self._set_confirm(self._imp_step1_confirm, False)
             self._btn_obj(self._imp_browse_btn, "btnStepActive")
-        self._imp_name_fld.setEnabled(True)
 
-        # Step 2 — Configure options (locked until step 1 done)
-        self._imp_opt_frame.setEnabled(file_ok)
-        if opts_ok:
+        # Step 2 — Asset name (locked until step 1 done)
+        self._imp_name_fld.setEnabled(file_ok)
+        if name_ok:
             self._set_badge(self._imp_step2_badge, "done")
             self._set_confirm(self._imp_step2_confirm, True)
-            self._set_step_btn(self._imp_confirm_btn, "done")
+            self._set_step_btn(self._imp_name_apply_btn, "done")
         else:
             st = "active" if file_ok else "locked"
             self._set_badge(self._imp_step2_badge, st)
             self._set_confirm(self._imp_step2_confirm, False)
-            self._set_step_btn(self._imp_confirm_btn, st)
+            self._set_step_btn(self._imp_name_apply_btn, st)
 
-        # Step 3 — Import (locked until step 2 done)
-        if done:
+        # Step 3 — Output folder & options (locked until step 2 done)
+        self._imp_opt_frame.setEnabled(name_ok)
+        if opts_ok:
             self._set_badge(self._imp_step3_badge, "done")
             self._set_confirm(self._imp_step3_confirm, True)
+            self._set_step_btn(self._imp_confirm_btn, "done")
+        else:
+            st = "active" if name_ok else "locked"
+            self._set_badge(self._imp_step3_badge, st)
+            self._set_confirm(self._imp_step3_confirm, False)
+            self._set_step_btn(self._imp_confirm_btn, st)
+
+        # Step 4 — Import (locked until step 3 done)
+        self._imp_run_frame.setEnabled(opts_ok)
+        if done:
+            self._set_badge(self._imp_step4_badge, "done")
+            self._set_confirm(self._imp_step4_confirm, True)
             self._set_step_btn(self._imp_import_btn, "done")
         else:
             st = "active" if opts_ok else "locked"
-            self._set_badge(self._imp_step3_badge, st)
-            self._set_confirm(self._imp_step3_confirm, False)
+            self._set_badge(self._imp_step4_badge, st)
+            self._set_confirm(self._imp_step4_confirm, False)
             self._set_step_btn(self._imp_import_btn, st)
 
-        # Section progress states
+        # Section progress + auto-collapse: close SOURCE FILE once the name is
+        # applied and open OPTIONS; open IMPORT once the options are applied.
         if self._imp_src_frame:
-            self._imp_src_frame.set_state("done" if file_ok else "active")
+            self._imp_src_frame.set_state("done" if name_ok else "active")
+            self._imp_src_frame.set_collapsed(name_ok)
         if self._imp_opt_frame:
             self._imp_opt_frame.set_state(
-                "done" if opts_ok else ("active" if file_ok else "idle"))
+                "done" if opts_ok else ("active" if name_ok else "idle"))
+            self._imp_opt_frame.set_collapsed(not name_ok)
         if self._imp_run_frame:
             self._imp_run_frame.set_state(
                 "done" if done else ("active" if opts_ok else "idle"))
+            self._imp_run_frame.set_collapsed(not opts_ok)
 
     # ── EXPORT step gating ─────────────────────────────────────────────────────
 
@@ -2446,11 +2515,12 @@ class GLBManager(object):
             return
         path = res[0]
         self._imp_path_fld.setText(path)
-        if not self._imp_name_fld.text().strip():
-            auto = (os.path.splitext(os.path.basename(path))[0]
-                    .replace("-", "_").replace(" ", "_").replace(".", "_"))
-            self._imp_name_fld.setText(auto)
+        # Auto-fill the asset name from the file (user confirms/edits in step 2).
+        auto = (os.path.splitext(os.path.basename(path))[0]
+                .replace("-", "_").replace(" ", "_").replace(".", "_"))
+        self._imp_name_fld.setText(auto)
         # A new file invalidates downstream confirmation + the completed import.
+        self._imp_name_confirmed = False
         self._imp_opts_confirmed = False
         self._imp_done           = False
         self._update_import_steps()
@@ -2463,7 +2533,8 @@ class GLBManager(object):
     def _do_import(self):
         from PySide6 import QtWidgets as QW
         # Step-gate guard (defense in depth — the button is also disabled).
-        if not (self._imp_file_ok() and self._imp_opts_confirmed):
+        if not (self._imp_file_ok() and self._imp_name_confirmed
+                and self._imp_opts_confirmed):
             return
         path = self._imp_path_fld.text().strip()
         if not path:
