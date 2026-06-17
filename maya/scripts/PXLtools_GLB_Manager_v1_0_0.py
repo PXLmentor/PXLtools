@@ -147,8 +147,8 @@ if not _log.handlers:
 # =============================================================================
 
 TOOL_NAME          = "GLB Manager"
-VERSION            = "0.4.0-alpha"
-WINDOW_OBJECT_NAME = "PXLtoolsGLBManager_v040"
+VERSION            = "1.0.0"
+WINDOW_OBJECT_NAME = "PXLtoolsGLBManager_v100"
 ICON_NAME          = "icon_glb_manager.png"
 ICON_FALLBACK      = "icon_glb_importer.png"
 
@@ -2050,13 +2050,13 @@ class GLBManager(object):
         self._exp_path_fld = QtWidgets.QLineEdit()
         self._exp_path_fld.setPlaceholderText("output.glb path…")
         self._exp_path_fld.setMinimumHeight(32)
-        out_browse_btn = QtWidgets.QPushButton("Browse…")
-        out_browse_btn.setObjectName("btnApply")
-        out_browse_btn.setMinimumHeight(32)
-        out_browse_btn.setMinimumWidth(110)
-        out_browse_btn.clicked.connect(self._browse_glb_save)
+        self._exp_path_browse_btn = QtWidgets.QPushButton("Browse…")
+        self._exp_path_browse_btn.setObjectName("btnApply")
+        self._exp_path_browse_btn.setMinimumHeight(32)
+        self._exp_path_browse_btn.setMinimumWidth(110)
+        self._exp_path_browse_btn.clicked.connect(self._browse_glb_save)
         out_row.addWidget(self._exp_path_fld, 1)
-        out_row.addWidget(out_browse_btn)
+        out_row.addWidget(self._exp_path_browse_btn)
         out_lay.addLayout(out_row)
 
         self._exp_norm_chk = QtWidgets.QCheckBox("Export Normals")
@@ -2512,6 +2512,12 @@ class GLBManager(object):
             self._set_badge(self._exp_step2_badge, st)
             self._set_confirm(self._exp_step2_confirm, False)
             self._set_step_btn(self._exp_confirm_btn, st)
+
+        # Output-path Browse turns green once a path is set.
+        if getattr(self, "_exp_path_browse_btn", None) is not None:
+            self._btn_obj(
+                self._exp_path_browse_btn,
+                "btnStepDone" if self._exp_path_ok() else "btnApply")
 
         # Step 3 — Export (locked until step 2 done)
         if done:
