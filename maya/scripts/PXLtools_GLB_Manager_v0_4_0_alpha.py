@@ -1489,6 +1489,12 @@ def _make_section_frame(title, icon_name=None, accent=None, parent=None):
     )
     hbox.addWidget(state_chk)
 
+    # Chevron — affordance that the section collapses/reopens on header click.
+    chev = QtWidgets.QLabel()
+    chev.setFixedWidth(16)
+    chev.setStyleSheet("background: transparent;")
+    hbox.addWidget(chev)
+
     outer.addWidget(header)
 
     body = QtWidgets.QFrame()
@@ -1529,9 +1535,27 @@ def _make_section_frame(title, icon_name=None, accent=None, parent=None):
 
     _apply_header_bg("idle")
     container.set_state = set_state
-    # collapse support — hide the body, keep the header. Used to auto-close a
-    # completed section (e.g. SOURCE FILE once the asset name is applied).
-    container.set_collapsed = lambda c, _b=body: _b.setVisible(not c)
+
+    # ── Collapsible: the header is clickable to toggle the body. A section that
+    #    auto-collapsed on completion can ALWAYS be reopened to edit it (same
+    #    behaviour as the TurnTable tool). The chevron reflects the state.
+    def _set_chev(collapsed):
+        if _PXLUI:
+            try:
+                chev.setPixmap(pxli.pixmap(
+                    "collapsed" if collapsed else "expanded", 13,
+                    pxlt.c("text_dim")))
+            except Exception:
+                pass
+
+    def _set_collapsed(collapsed):
+        body.setVisible(not collapsed)
+        _set_chev(collapsed)
+
+    header.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+    header.mousePressEvent = lambda _e: _set_collapsed(body.isVisible())
+    container.set_collapsed = _set_collapsed
+    _set_chev(False)
 
     return container, body_layout, hbox
 
@@ -1807,13 +1831,13 @@ class GLBManager(object):
         self._imp_tex_fld = QtWidgets.QLineEdit()
         self._imp_tex_fld.setPlaceholderText("Folder for extracted textures…")
         self._imp_tex_fld.setMinimumHeight(32)
-        _of_browse = QtWidgets.QPushButton("Browse…")
-        _of_browse.setObjectName("btnApply")
-        _of_browse.setMinimumHeight(32)
-        _of_browse.setMinimumWidth(110)
-        _of_browse.clicked.connect(self._browse_tex_folder)
+        self._imp_tex_browse_btn = QtWidgets.QPushButton("Browse…")
+        self._imp_tex_browse_btn.setObjectName("btnApply")
+        self._imp_tex_browse_btn.setMinimumHeight(32)
+        self._imp_tex_browse_btn.setMinimumWidth(110)
+        self._imp_tex_browse_btn.clicked.connect(self._browse_tex_folder)
         _of_hbox.addWidget(self._imp_tex_fld, 1)
-        _of_hbox.addWidget(_of_browse)
+        _of_hbox.addWidget(self._imp_tex_browse_btn)
         opt_lay.addWidget(self._imp_tex_row)
 
         self._imp_uv_chk = QtWidgets.QCheckBox("Import UVs")
@@ -1941,6 +1965,9 @@ class GLBManager(object):
         scroll.setWidget(inner)
 
         self._update_import_steps()
+        # Initial collapse: SOURCE FILE open (active step), later sections closed.
+        self._imp_opt_frame.set_collapsed(True)
+        self._imp_run_frame.set_collapsed(True)
         return scroll
 
     # ── EXPORT TAB ────────────────────────────────────────────────────────────
@@ -2127,6 +2154,9 @@ class GLBManager(object):
         scroll.setWidget(inner)
 
         self._update_export_steps()
+        # Initial collapse: SELECTION open (active step), later sections closed.
+        self._exp_out_frame.set_collapsed(True)
+        self._exp_run_frame.set_collapsed(True)
         return scroll
 
     # ── SCENE TAB ────────────────────────────────────────────────────────────
@@ -2302,6 +2332,9 @@ class GLBManager(object):
             return
         self._imp_name_confirmed = True
         self._update_import_steps()
+        # One-time: close the completed section, open the next (still reopenable).
+        self._imp_src_frame.set_collapsed(True)
+        self._imp_opt_frame.set_collapsed(False)
 
     def _on_import_option_changed(self, *_):
         """Changing any option after confirming re-opens step 3 and re-locks 4."""
@@ -2316,6 +2349,9 @@ class GLBManager(object):
             return
         self._imp_opts_confirmed = True
         self._update_import_steps()
+        # One-time: close OPTIONS, open IMPORT (where the progress bar runs).
+        self._imp_opt_frame.set_collapsed(True)
+        self._imp_run_frame.set_collapsed(False)
 
     def _update_import_steps(self):
         """State machine: 1 Browse -> 2 Name(Apply) -> 3 Options -> 4 Import.
@@ -2374,19 +2410,22 @@ class GLBManager(object):
             self._set_confirm(self._imp_step4_confirm, False)
             self._set_step_btn(self._imp_import_btn, st)
 
-        # Section progress + auto-collapse: close SOURCE FILE once the name is
-        # applied and open OPTIONS; open IMPORT once the options are applied.
+        # Output-folder Browse turns green once a folder is chosen.
+        if getattr(self, "_imp_tex_browse_btn", None) is not None:
+            self._btn_obj(
+                self._imp_tex_browse_btn,
+                "btnStepDone" if self._imp_tex_fld.text().strip() else "btnApply")
+
+        # Section progress COLOURS only. Collapsing happens once at each Apply
+        # (so a section the user manually reopens stays open and editable).
         if self._imp_src_frame:
             self._imp_src_frame.set_state("done" if name_ok else "active")
-            self._imp_src_frame.set_collapsed(name_ok)
         if self._imp_opt_frame:
             self._imp_opt_frame.set_state(
                 "done" if opts_ok else ("active" if name_ok else "idle"))
-            self._imp_opt_frame.set_collapsed(not name_ok)
         if self._imp_run_frame:
             self._imp_run_frame.set_state(
                 "done" if done else ("active" if opts_ok else "idle"))
-            self._imp_run_frame.set_collapsed(not opts_ok)
 
     # ── EXPORT step gating ─────────────────────────────────────────────────────
 
@@ -2418,6 +2457,10 @@ class GLBManager(object):
             self._exp_sel_label.setText(
                 "No objects selected — pick them in the SCENE tab first.")
         self._update_export_steps()
+        # One-time: close SELECTION, open OUTPUT (still reopenable on click).
+        if self._exp_sel_count:
+            self._exp_sel_frame.set_collapsed(True)
+            self._exp_out_frame.set_collapsed(False)
 
     def _on_export_option_changed(self, *_):
         """Changing the path or any option after confirming re-opens step 2."""
@@ -2435,6 +2478,9 @@ class GLBManager(object):
             return
         self._exp_opts_confirmed = True
         self._update_export_steps()
+        # One-time: close OUTPUT, open EXPORT (where the progress runs).
+        self._exp_out_frame.set_collapsed(True)
+        self._exp_run_frame.set_collapsed(False)
 
     def _update_export_steps(self):
         """State machine: 1 Select objects -> 2 Output options -> 3 Export.
@@ -2529,6 +2575,7 @@ class GLBManager(object):
         res = cmds.fileDialog2(fileMode=3, caption="Select Folder")
         if res:
             self._imp_tex_fld.setText(res[0])
+            self._update_import_steps()   # turns the Browse green once a folder is set
 
     def _do_import(self):
         from PySide6 import QtWidgets as QW
